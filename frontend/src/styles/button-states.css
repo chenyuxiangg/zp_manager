@@ -1,0 +1,63 @@
+/* 按钮状态样式 - Hover / Active 效果 */
+
+/* 通用按钮过渡 */
+button,
+.btn {
+  transition: all 0.2s ease;
+}
+
+/* 主要按钮 Hover */
+button:hover,
+.btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* 主要按钮 Active */
+button:active,
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 危险按钮 */
+.btn-danger {
+  background: var(--color-error, #ff3b30);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* 次要按钮 */
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--color-border, #d2d2d7);
+  color: var(--color-secondary, #6e6e73);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-surface, #f5f5f7);
+  border-color: var(--color-secondary, #6e6e73);
+}
+
+/* 文字按钮 */
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-accent, #0071e3);
+  padding: 0;
+}
+
+.btn-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* 禁用状态 */
+button:disabled,
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}

@@ -1,0 +1,32 @@
+{
+  "name": "zpersion-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@vueup/vue-quill": "^1.2.0",
+    "axios": "^1.6.2",
+    "canvas-confetti": "^1.9.4",
+    "dayjs": "^1.11.21",
+    "driver.js": "^1.4.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.2",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^15.11.7",
+    "vite": "^5.0.10",
+    "vitest": "^2.1.9"
+  }
+}

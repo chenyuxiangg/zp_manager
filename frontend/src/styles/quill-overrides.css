@@ -1,0 +1,95 @@
+/* Quill 编辑器样式覆盖 - 与项目风格统一 */
+
+/* 编辑器容器 */
+.editor-wrapper {
+  border: 1px solid var(--color-border, #d2d2d7);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.editor-wrapper:focus-within {
+  border-color: var(--color-accent, #0071e3);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+/* Toolbar 样式 */
+.editor-wrapper .ql-toolbar {
+  border: none;
+  border-bottom: 1px solid var(--color-border, #d2d2d7);
+  background: var(--color-surface, #f5f5f7);
+  padding: 8px 12px;
+}
+
+.editor-wrapper .ql-toolbar .ql-stroke {
+  stroke: var(--color-secondary, #6e6e73);
+}
+
+.editor-wrapper .ql-toolbar .ql-fill {
+  fill: var(--color-secondary, #6e6e73);
+}
+
+.editor-wrapper .ql-toolbar:hover .ql-stroke {
+  stroke: var(--color-accent, #0071e3);
+}
+
+.editor-wrapper .ql-toolbar:hover .ql-fill {
+  fill: var(--color-accent, #0071e3);
+}
+
+/* 内容区域 */
+.editor-wrapper .ql-container {
+  border: none;
+  font-size: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+.editor-wrapper .ql-editor {
+  min-height: 120px;
+  padding: 12px 16px;
+  color: var(--color-primary, #000);
+  line-height: 1.6;
+}
+
+.editor-wrapper .ql-editor.ql-blank::before {
+  color: var(--color-secondary, #6e6e73);
+  font-style: normal;
+}
+
+/* 格式化按钮 */
+.editor-wrapper .ql-toolbar button {
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.editor-wrapper .ql-toolbar button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Bubble 主题样式 */
+.ql-bubble .ql-toolbar {
+  background: var(--color-primary, #000);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.ql-bubble .ql-toolbar .ql-stroke {
+  stroke: white;
+}
+
+.ql-bubble .ql-toolbar .ql-fill {
+  fill: white;
+}
+
+.ql-bubble .ql-toolbar button:hover .ql-stroke {
+  stroke: var(--color-accent, #0071e3);
+}
+
+.ql-bubble .ql-toolbar button:hover .ql-fill {
+  fill: var(--color-accent, #0071e3);
+}
+
+/* 只读模式 */
+.editor-wrapper.readonly .ql-editor {
+  background: var(--color-surface, #f5f5f7);
+}

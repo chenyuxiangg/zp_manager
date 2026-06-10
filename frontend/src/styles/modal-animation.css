@@ -1,0 +1,75 @@
+/* Modal 动画样式 - fade + scale 过渡效果 */
+
+/* Modal 背景覆盖层动画 */
+.modal {
+  animation: modal-overlay-fade-in 0.2s ease;
+}
+
+@keyframes modal-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Modal 内容动画 */
+.modal-content {
+  animation: modal-scale-in 0.25s ease;
+}
+
+@keyframes modal-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Modal 关闭动画（配合 Vue transition） */
+.modal-leave-active {
+  animation: modal-fade-out 0.2s ease;
+}
+
+@keyframes modal-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.modal-content-leave-active {
+  animation: modal-scale-out 0.2s ease;
+}
+
+@keyframes modal-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* 通用过渡 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 滑入效果 */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
