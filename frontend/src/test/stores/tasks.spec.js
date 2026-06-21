@@ -139,7 +139,8 @@ describe('useTasksStore', () => {
 
       const res = await tasks.toggleTaskComplete(1)
 
-      expect(mockApi.patch).toHaveBeenCalledWith('/tasks/1/toggle')
+      // B0326: toggleTaskComplete 现在传 source 字段（默认 manual）
+      expect(mockApi.patch).toHaveBeenCalledWith('/tasks/1/toggle', { source: 'manual' })
       expect(tasks.currentTask).toEqual(updatedTask)
     })
 

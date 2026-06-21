@@ -3,8 +3,8 @@
 
 联调报告遗留 #5：原 D7 决策是「统一返 404」已变更。
 新 D7 决策（2026-06-06 联调后）：
-- 任务/计划/阶段 不存在 → 404 NOT_FOUND
-- 任务/计划/阶段 存在但属于他人 → 403 FORBIDDEN
+- 任务/计划/阶段 不存在 → 404 RESOURCE_NOT_FOUND
+- 任务/计划/阶段 存在但属于他人 → 403 PERMISSION_DENIED
 - 评论 同理（不存 → 404，存在但属于他人 → 403）
 
 实施范围：task get/update/delete/toggle/comment 三操作、plan get/update/delete
@@ -28,7 +28,8 @@ class TestCrossUserTaskAccess:
 
         res = client.get(f'/api/tasks/{bob_task.id}', headers=auth_headers)
         assert res.status_code == 403
-        assert res.get_json()['error']['code'] == 'FORBIDDEN'
+        # PR0017 B0181 + B0224：默认 code 改 NOT_OWNER（4 类 403 区分）
+        assert res.get_json()['error']['code'] == 'NOT_OWNER'
 
     def test_update_other_users_task_returns_403(self, client, auth_headers, other_user, stage, session):
         bob_task = Task(
@@ -84,7 +85,8 @@ class TestCrossUserTaskAccess:
         """不存在的 task 仍是 404（与 403 区分）"""
         res = client.get('/api/tasks/99999', headers=auth_headers)
         assert res.status_code == 404
-        assert res.get_json()['error']['code'] == 'NOT_FOUND'
+        # PR0017：NOT_FOUND → RESOURCE_NOT_FOUND
+        assert res.get_json()['error']['code'] == 'RESOURCE_NOT_FOUND'
 
 
 class TestCrossUserPlanAccess:

@@ -1,29 +1,10 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
-
     <main class="main-content">
       <div class="task-detail" v-if="task">
         <!-- 面包屑 + 返回按钮（路由栈式返回） -->
         <div class="breadcrumb-bar">
-          <button class="back-btn" @click="goBack" title="返回任务列表">← 返回</button>
+          <BaseButton class="back-btn" variant="ghost" size="sm" @click="goBack" title="返回任务列表">← 返回</BaseButton>
           <Breadcrumb :crumbs="[{ label: '任务', path: '/tasks' }, { label: task.title, path: null }]" />
         </div>
 
@@ -40,27 +21,45 @@
             </div>
           </div>
           <div class="task-actions">
-            <button
-              class="btn-secondary"
+            <BaseButton
+              variant="secondary"
               @click="toggleComplete"
               :disabled="loading"
             >
               {{ task.status === 'completed' ? '标记未完成' : '标记完成' }}
-            </button>
-            <button v-if="!editing" class="btn-secondary" @click="startEdit" :disabled="loading">编辑</button>
+            </BaseButton>
+            <BaseButton v-if="!editing" variant="secondary" @click="startEdit" :disabled="loading">编辑</BaseButton>
             <template v-else>
-              <button class="btn-primary" @click="saveEdit" :disabled="loading">保存</button>
-              <button class="btn-secondary" @click="cancelEdit">取消</button>
+              <BaseButton variant="primary" @click="saveEdit" :disabled="loading">保存</BaseButton>
+              <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
             </template>
-            <button class="btn-danger" @click="showDeleteConfirm = true" :disabled="loading">删除</button>
+            <BaseButton variant="danger" @click="showDeleteConfirm = true" :disabled="loading">删除</BaseButton>
           </div>
         </div>
+
+        <!-- B0299: Pomodoro 专注区 (核心产品功能) -->
+        <BaseCard elevation="raised" padding="md" class="pomodoro-section" data-guide="pomodoro-start">
+          <h3>专注</h3>
+          <PomodoroStartButton
+            :running="pomodoroRunning"
+            :starting="pomodoroStarting"
+            @start="startPomodoro"
+            @stop="stopPomodoro"
+          />
+          <PomodoroTimer
+            v-if="pomodoroRunning"
+            :duration="pomodoroMinutes * 60"
+            :auto-toggle="pomodoroAutoToggle"
+            @complete="onPomodoroComplete"
+          />
+          <PomodoroHistoryList :sessions="pomodoroSessions" />
+        </BaseCard>
 
         <!-- 描述区 -->
         <div class="task-description glass">
           <h3>描述</h3>
           <div v-if="!editing" class="description-content">
-            <div v-if="task.description" v-html="task.description"></div>
+            <div v-if="task.description" v-html="sanitizeHtml(task.description)"></div>
             <p v-else class="empty-text">暂无描述</p>
           </div>
           <textarea
@@ -87,7 +86,7 @@
           </div>
           <div class="comment-editor">
             <QuillEditor v-model:content="newComment" contentType="html" theme="snow" />
-            <button @click="submitComment" class="btn-primary" :disabled="loading">发送评论</button>
+            <BaseButton variant="primary" @click="submitComment" :disabled="loading">发送评论</BaseButton>
           </div>
         </div>
       </div>
@@ -111,12 +110,21 @@ import { useRoute, useRouter } from 'vue-router'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import CommentItem from '@/components/common/CommentItem.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+// B0254: 用基元组件替代原始 button
+import BaseButton from '@/components/base/BaseButton.vue'
+// B0299: Pomodoro 3 组件
+import BaseCard from '@/components/base/BaseCard.vue'
+import PomodoroStartButton from '@/components/pomodoro/PomodoroStartButton.vue'
+import PomodoroTimer from '@/components/pomodoro/PomodoroTimer.vue'
+import PomodoroHistoryList from '@/components/pomodoro/PomodoroHistoryList.vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import { useTasksStore } from '@/stores/tasks'
 import { useAuthStore } from '@/stores/auth'
 import { useApiResponse } from '@/composables/useApiResponse'
 import { useDraft } from '@/composables/useDraft'
 import { useBackNavigation } from '@/composables/useBackNavigation'
+// B0292: XSS 防御 — sanitizeHtml 用于 v-html 前置过滤
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const route = useRoute()
 const router = useRouter()
@@ -133,6 +141,96 @@ const showDeleteConfirm = ref(false)
 const newComment = ref('')
 const editForm = ref({ title: '', description: '' })
 const loading = ref(false)
+
+// B0299: Pomodoro state (核心产品功能)
+const pomodoroRunning = ref(false)
+const pomodoroStarting = ref(false)
+const pomodoroSessions = ref([])
+const pomodoroMinutes = 25  // 默认 25min
+// B0325: 改 ref 让 UI 切换；PR0021 纯计时默认 false
+const pomodoroAutoToggle = ref(false)
+// B0312: 保存当前活跃 pomodoro session_id（end URL 必传）
+const currentPomodoroSessionId = ref(null)
+
+async function startPomodoro() {
+  pomodoroStarting.value = true
+  try {
+    // B0313: 发 planned_minutes（分钟），与后端 PomodoroSession.planned_minutes 字段对齐
+    const res = await api.post(
+      `/tasks/${taskId}/pomodoro/start`,
+      { planned_minutes: pomodoroMinutes }
+    )
+    if (res.success) {
+      pomodoroRunning.value = true
+      // B0312: 捕获并保存 session_id，供 stopPomodoro URL 拼接
+      currentPomodoroSessionId.value = res?.data?.session_id || null
+      // B0313: 兜底同步后端权威 planned_minutes（校验后值）
+      if (res?.data?.planned_minutes && res.data.planned_minutes !== pomodoroMinutes) {
+        pomodoroMinutes = res.data.planned_minutes
+      }
+      handleSuccess('专注已开始')
+    }
+  } catch (e) {
+    handleError(e)
+  } finally {
+    pomodoroStarting.value = false
+  }
+}
+async function stopPomodoro(earlyEnd = false) {
+  // B0312: 无 session_id 不调 API（防御）
+  if (!currentPomodoroSessionId.value) {
+    handleError(new Error('无活跃的专注 session，请先点击"开始专注"'))
+    return
+  }
+  try {
+    // B0325: body 必传 early_end + auto_toggle（PR0008 联动版依赖）
+    const res = await api.post(
+      `/tasks/${taskId}/pomodoro/${currentPomodoroSessionId.value}/end`,
+      {
+        early_end: earlyEnd,
+        auto_toggle: pomodoroAutoToggle.value,
+        duration: pomodoroMinutes * 60,
+      }
+    )
+    if (res.success) {
+      pomodoroRunning.value = false
+      currentPomodoroSessionId.value = null
+      // B0315 修复: end 后刷新历史列表，新结束的 session 应出现在 PomodoroHistoryList
+      await fetchPomodoroSessions()
+      handleSuccess('专注已结束')
+    }
+  } catch (e) {
+    handleError(e)
+  }
+}
+async function onPomodoroComplete() {
+  // B0325: 倒计时归零不调 API（只切 UI 状态），PR0008 联动版在 stopPomodoro 路径生效
+  pomodoroRunning.value = false
+  handleSuccess(pomodoroAutoToggle.value
+    ? '已完成 25 分钟专注 + 任务已自动完成'
+    : '已完成 25 分钟专注')
+}
+
+// B0315 修复: 重命名为 fetchPomodoroSessions（既查 active session 也回填历史）
+// B0312: 恢复 active pomodoro session（跨设备/刷新场景）
+async function fetchPomodoroSessions() {
+  try {
+    const res = await api.get(`/tasks/${taskId}/pomodoros`)
+    if (res.success) {
+      const sessions = res?.data?.sessions || []
+      // 1. 回填历史列表（PomodoroHistoryList 显示）
+      pomodoroSessions.value = sessions
+      // 2. 恢复 active session（跨设备/刷新场景）
+      const active = sessions.find(s => !s.ended_at)
+      if (active) {
+        currentPomodoroSessionId.value = active.id
+        pomodoroRunning.value = true
+      }
+    }
+  } catch {
+    // sessions 接口缺失/失败时静默，不影响主流程
+  }
+}
 
 // 草稿：使用 watchDraft 自动防抖保存
 const { loadDraft, clearDraft, watchDraft } = useDraft(`task-${taskId}`, editForm)
@@ -171,6 +269,8 @@ onMounted(async () => {
   if (commentsRes.success) {
     comments.value = tasksStore.taskComments
   }
+  // B0315: 加载历史 + 恢复 active session（统一入口 fetchPomodoroSessions）
+  fetchPomodoroSessions()
   if (route.query.edit === '1') editing.value = true
 })
 

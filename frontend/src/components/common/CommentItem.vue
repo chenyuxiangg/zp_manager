@@ -6,10 +6,10 @@
         <span class="comment-username">{{ username }}</span>
         <span class="comment-time">{{ relativeTime }}</span>
       </div>
-      <div class="comment-content" v-html="content"></div>
+      <div class="comment-content" v-html="safeContent"></div>
       <div v-if="isOwner" class="comment-actions">
-        <button @click="handleEdit" class="btn-link">编辑</button>
-        <button @click="handleDelete" class="btn-link btn-danger">删除</button>
+        <BaseButton variant="ghost" size="sm" @click="handleEdit">编辑</BaseButton>
+        <BaseButton variant="ghost" size="sm" @click="handleDelete">删除</BaseButton>
       </div>
       <div v-if="editing" class="edit-form">
         <div class="editor-wrapper">
@@ -21,8 +21,8 @@
           />
         </div>
         <div class="edit-actions">
-          <button @click="cancelEdit" class="btn-secondary">取消</button>
-          <button @click="saveEdit" class="btn-primary">保存</button>
+          <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
+          <BaseButton variant="primary" @click="saveEdit">保存</BaseButton>
         </div>
       </div>
     </div>
@@ -34,6 +34,10 @@ import { ref, computed } from 'vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { formatRelative } from '@/plugins/dayjs'
+// B0291: 防御性 XSS strip (后端 bleach sanitize + 前端二次防御)
+import { sanitizeHtml } from '@/utils/sanitize'
+// B0290: 用基元组件替代原始 button
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const props = defineProps({
   comment: {
@@ -50,6 +54,8 @@ const editContent = ref('')
 
 const username = computed(() => props.comment.user || '未知用户')
 const avatarLetter = computed(() => (username.value[0] || '?').toUpperCase())
+// B0291: sanitize before v-html
+const safeContent = computed(() => sanitizeHtml(props.comment.content || ''))
 const relativeTime = computed(() => formatRelative(props.comment.created_at))
 const isOwner = computed(() => props.comment.is_owner)
 const content = computed(() => props.comment.content)

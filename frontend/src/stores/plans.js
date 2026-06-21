@@ -63,6 +63,51 @@ export const usePlansStore = defineStore('plans', {
     async deleteStage(stageId) {
       const res = await api.delete(`/stages/${stageId}`)
       return res
-    }
+    },
+
+    // ==================== B0303: 任务 CRUD（PlanDetail.vue 使用） ====================
+    async createTask(stageId, data) {
+      const res = await api.post(`/stages/${stageId}/tasks`, data)
+      return res
+    },
+    async updateTask(taskId, data) {
+      const res = await api.put(`/tasks/${taskId}`, data)
+      return res
+    },
+    async completeTask(taskId) {
+      const res = await api.put(`/tasks/${taskId}/complete`)
+      return res
+    },
+    async deleteTask(taskId) {
+      const res = await api.delete(`/tasks/${taskId}`)
+      return res
+    },
+
+    // ==================== B0303: 模板 CRUD（Plans.vue 使用） ====================
+    async fetchTemplates() {
+      const res = await api.get('/plan-templates')
+      return res
+    },
+    async createTemplate(planId) {
+      const res = await api.post('/plan-templates', { plan_id: planId })
+      return res
+    },
+    async deleteTemplate(templateId) {
+      const res = await api.delete(`/plan-templates/${templateId}`)
+      return res
+    },
+    async createPlanFromTemplate(templateId, startDate) {
+      const res = await api.post('/plan-templates/from-template', {
+        template_id: templateId,
+        start_date: startDate,
+      })
+      return res
+    },
+    async importTemplate(formData) {
+      const res = await api.post('/plan-templates/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return res
+    },
   }
 })

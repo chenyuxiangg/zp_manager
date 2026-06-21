@@ -6,8 +6,14 @@
 
       <form @submit.prevent="requestReset">
         <div class="form-group">
-          <label>邮箱</label>
-          <input v-model="email" type="email" required placeholder="请输入邮箱" />
+          <!-- B0302: 迁 BaseInput -->
+          <BaseInput
+            v-model="email"
+            type="email"
+            label="邮箱"
+            placeholder="请输入邮箱"
+            required
+          />
         </div>
         <button type="submit" :disabled="loading">
           {{ loading ? '发送中...' : '发送重置链接' }}
@@ -27,9 +33,12 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/api'
+import { useAuthStore } from '@/stores/auth'
+// B0302: 统一表单基元
+import BaseInput from '@/components/base/BaseInput.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const email = ref('')
 const loading = ref(false)
 const success = ref(false)
@@ -41,7 +50,7 @@ async function requestReset() {
   success.value = false
 
   try {
-    const res = await api.post('/auth/forgot-password', { email: email.value })
+    const res = await authStore.forgotPassword(email.value)
     if (res.success) {
       success.value = true
     } else {

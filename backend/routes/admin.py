@@ -1,46 +1,14 @@
 from flask import Blueprint, request, jsonify, g
 from models import db, User
 from utils import token_required, create_response
+from utils import error_codes as ec  # PR0017
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 
-def admin_required(f):
-    """Decorator to require admin privileges"""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token:
-            return jsonify(create_response(success=False, error={'code': 'UNAUTHORIZED', 'message': 'Missing token'})), 401
-
-        import jwt
-        from config import Config
-        from models import TokenBlacklist
-
-        try:
-            payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            blacklisted = TokenBlacklist.query.filter_by(jti=payload['jti']).first()
-            if blacklisted:
-                return jsonify(create_response(success=False, error={'code': 'UNAUTHORIZED', 'message': 'Token revoked'})), 401
-
-            from models import User
-            user = User.query.get(payload['user_id'])
-            if not user or not user.is_admin:
-                return jsonify(create_response(success=False, error={'code': 'FORBIDDEN', 'message': 'Admin access required'})), 403
-
-            g.current_user = user
-        except jwt.ExpiredSignatureError:
-            return jsonify(create_response(success=False, error={'code': 'UNAUTHORIZED', 'message': 'Token expired'})), 401
-        except jwt.InvalidTokenError:
-            return jsonify(create_response(success=False, error={'code': 'UNAUTHORIZED', 'message': 'Invalid token'})), 401
-
-        return f(*args, **kwargs)
-    return decorated
-
-
+# B0232：admin_required 改用 @token_required(role='admin')，去重 jwt 逻辑
 @admin_bp.route('/users', methods=['GET'])
-@admin_required
+@token_required(role='admin')
 def list_users():
     """Get all users (admin only)"""
     page = request.args.get('page', 1, type=int)
@@ -57,16 +25,16 @@ def list_users():
 
 
 @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
-@admin_required
+@token_required(role='admin')
 def delete_user(user_id):
     """Delete a user and all their data (admin only)"""
     # Prevent admin from deleting themselves
     if user_id == g.current_user.id:
-        return jsonify(create_response(success=False, error={'code': 'FORBIDDEN', 'message': 'Cannot delete yourself'})), 403
+        return ec.forbidden(ec.NOT_ADMIN, message='Cannot delete yourself')
 
     user = User.query.get(user_id)
     if not user:
-        return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'User not found'})), 404
+        return ec.not_found(ec.RESOURCE_NOT_FOUND, message='User not found')
 
     db.session.delete(user)
     db.session.commit()

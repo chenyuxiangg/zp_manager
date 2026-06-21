@@ -72,7 +72,7 @@ describe('Tasks.vue', () => {
       const wrapper = mount(Tasks)
       await flushPromises()
 
-      const card = wrapper.find('.task-card')
+      const card = wrapper.find('.base-card')
       await card.trigger('click')
       await flushPromises()
 
@@ -123,7 +123,7 @@ describe('Tasks.vue', () => {
       await flushPromises()
 
       // 直接子元素中不应有独立的"完成"按钮
-      const card = wrapper.find('.task-card')
+      const card = wrapper.find('.base-card')
       // 直接子级 button 列表（覆盖层按钮不在内，因为有 .task-actions-overlay 包裹）
       const directButtons = card.findAll(':scope > button')
       expect(directButtons).toHaveLength(0)

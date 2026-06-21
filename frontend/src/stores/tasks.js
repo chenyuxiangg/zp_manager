@@ -68,11 +68,20 @@ export const useTasksStore = defineStore('tasks', {
       return res
     },
 
-    async toggleTaskComplete(taskId) {
+    async toggleTaskComplete(taskId, source = 'manual') {
       // PATCH /tasks/:id/toggle（后端 toggle 实现，含积分回滚）
-      const res = await api.patch(`/tasks/${taskId}/toggle`)
-      if (res.success && res.data?.task) {
-        this.currentTask = res.data.task
+      // B0326: 传 source 字段 — pomodoro_auto_toggle 走 RateGuard 白名单
+      const res = await api.patch(`/tasks/${taskId}/toggle`, { source })
+      if (res.success) {
+        // B0329: 用 Object.assign 合并而非整体替换，保留 currentTask.stage/plan 嵌套
+        // （后端 toggle 响应故意不带 stage/plan，避免 PATCH 路径 join stage/plan 表；
+        //  整体赋值会丢失 fetchTaskDetail 时已有的嵌套，破坏 PR0007/D6 决策）
+        if (this.currentTask && res.data?.task) {
+          Object.assign(this.currentTask, res.data.task)
+        } else if (res.data?.task) {
+          // currentTask=null 兜底：首次 toggle（无 fetchTaskDetail）直接赋值
+          this.currentTask = res.data.task
+        }
       }
       return res
     },

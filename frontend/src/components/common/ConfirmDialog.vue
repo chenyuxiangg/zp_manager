@@ -5,12 +5,12 @@
         <h3>{{ title }}</h3>
         <p>{{ message }}</p>
         <div class="confirm-actions">
-          <button class="btn-cancel" @click="handleCancel" :disabled="loading">
+          <BaseButton variant="secondary" @click="handleCancel" :disabled="loading">
             {{ cancelText }}
-          </button>
-          <button class="btn-confirm" :class="{ danger: isDanger }" @click="handleConfirm" :disabled="loading">
+          </BaseButton>
+          <BaseButton :variant="isDanger ? 'danger' : 'primary'" :loading="loading" @click="handleConfirm">
             {{ loading ? '处理中...' : confirmText }}
-          </button>
+          </BaseButton>
         </div>
       </div>
     </div>
@@ -18,6 +18,7 @@
 </template>
 
 <script setup>
+import BaseButton from '@/components/base/BaseButton.vue'
 defineProps({
   visible: Boolean,
   title: {

@@ -14,6 +14,14 @@ import pytest
 from models import PointLog
 
 
+# B0331：测试 toggle 撤销行为时需绕过 30min rate_guard，让撤销走真实逻辑
+@pytest.fixture
+def bypass_rate_guard(monkeypatch):
+    from services.rate_guard import RateGuard
+    monkeypatch.setattr(RateGuard, 'can_toggle',
+                        staticmethod(lambda *a, **kw: (True, 0)))
+
+
 class TestToggleLockHelper:
     """toggle_locked_query 工具函数"""
 
@@ -39,11 +47,13 @@ class TestToggleLockHelper:
 class TestToggleBehaviorWithLock:
     """验证 toggle 行为在锁定/非锁定路径下都正确"""
 
-    def test_concurrent_toggle_serializes_via_app(self, client, auth_headers, task, user, session):
+    def test_concurrent_toggle_serializes_via_app(self, client, auth_headers, task, user, session, bypass_rate_guard):
         """验证连续两次 toggle 不会破坏数据完整性（通过 application-level 串行化）
 
         SQLite 不支持行锁，但 Flask test client 是单线程串行的。
         此测试验证在串行调用下，状态正确流转。
+        B0331：撤销方向现在被 rate_guard 拦截，所以本测试用 bypass_rate_guard
+        让 toggle 行为保持 RR1 既定链路。
         """
         user.points = 0
         session.commit()
@@ -61,7 +71,7 @@ class TestToggleBehaviorWithLock:
         session.refresh(user)
         assert user.points == 0
 
-    def test_toggle_keeps_point_log_after_uncomplete(self, client, auth_headers, task, session):
+    def test_toggle_keeps_point_log_after_uncomplete(self, client, auth_headers, task, session, bypass_rate_guard):
         """撤销完成不删除 PointLog（保留审计）"""
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)

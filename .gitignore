@@ -5,4 +5,10 @@ __pycache__/
 node_modules/
 dist/
 .env
+.env.development
+.env.production
+.env.local
 .requires
+backend/venv/
+venv/
+.venv/

@@ -17,6 +17,8 @@
     "canvas-confetti": "^1.9.4",
     "dayjs": "^1.11.21",
     "driver.js": "^1.4.0",
+    "echarts": "^5.6.0",
+    "jwt-decode": "^4.0.0",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5"

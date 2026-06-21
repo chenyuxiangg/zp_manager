@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from models import db, Plan, Stage, Task
-from utils import token_required, create_response, not_found, forbidden, check_resource_permission
+from utils import token_required, create_response, check_resource_permission
+from utils import error_codes as ec  # PR0017
 from utils.sanitize import sanitize_html, strip_tags
 
 plans_bp = Blueprint('plans', __name__, url_prefix='/api/plans')
@@ -23,16 +24,16 @@ def create_plan():
     end_date = data.get('end_date')
 
     if not all([title, start_date, end_date]):
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Missing required fields'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='缺少必填字段')
 
     # 标题清洗：剥除 HTML 标签（XSS 防护）
     title = strip_tags(title)
     if not title:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划名称不能为空'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='计划名称不能为空')
 
     existing = Plan.query.filter_by(user_id=g.current_user.id, title=title).first()
     if existing:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划名称已存在'})), 422
+        return ec.conflict(ec.TITLE_DUPLICATED, message='计划名称已存在')
 
     from datetime import date
     plan = Plan(
@@ -78,10 +79,7 @@ def update_plan(plan_id):
     if 'title' in data:
         cleaned_title = strip_tags(data['title'])
         if not cleaned_title:
-            return jsonify(create_response(
-                success=False,
-                error={'code': 'VALIDATION_ERROR', 'message': 'Title cannot be empty'}
-            )), 422
+            return ec.bad_request(ec.INVALID_INPUT, message='Title cannot be empty')
         plan.title = cleaned_title
     if 'description' in data:
         plan.description = sanitize_html(data['description'])
@@ -91,7 +89,7 @@ def update_plan(plan_id):
             stages = Stage.query.filter_by(plan_id=plan_id).all()
             has_pending = any(s.status != 'completed' for s in stages)
             if has_pending:
-                return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划下还有未完成的阶段，无法归档'})), 422
+                return ec.conflict(ec.PLAN_NOT_ARCHIVABLE, message='计划下还有未完成的阶段，无法归档')
         plan.status = new_status
 
     db.session.commit()
@@ -106,6 +104,14 @@ def delete_plan(plan_id):
     if err:
         return err
 
+    # B0234：用 .has() 关联查询，避免懒加载 plan.stages
+    has_completed = Task.query.filter(
+        Task.stage.has(plan_id=plan.id),
+        Task.status == 'completed',
+    ).first() is not None
+    if has_completed:
+        return ec.conflict(ec.PLAN_HAS_COMPLETED_TASKS, message='计划下存在已完成的任务，无法删除')
+
     db.session.delete(plan)
     db.session.commit()
     return jsonify(create_response(message='Plan deleted successfully'))
@@ -116,7 +122,7 @@ def delete_plan(plan_id):
 def create_stage(plan_id):
     plan = Plan.query.filter_by(id=plan_id, user_id=g.current_user.id).first()
     if not plan:
-        return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'Plan not found'})), 404
+        return ec.not_found(ec.RESOURCE_NOT_FOUND, message='Plan not found')
 
     data = request.get_json()
     title = data.get('title')
@@ -124,18 +130,18 @@ def create_stage(plan_id):
     # 标题清洗
     title = strip_tags(title) if title else None
     if not title:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '阶段名称不能为空'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='阶段名称不能为空')
 
     existing = Stage.query.filter_by(plan_id=plan_id, title=title).first()
     if existing:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '阶段名称已存在'})), 422
+        return ec.conflict(ec.TITLE_DUPLICATED, message='阶段名称已存在')
 
     from datetime import date
     stage_start = date.fromisoformat(data['start_date'])
     stage_end = date.fromisoformat(data['end_date'])
 
     if stage_start < plan.start_date or stage_end > plan.end_date:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '阶段时间必须在计划时间范围内'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='阶段时间必须在计划时间范围内')
 
     stage = Stage(
         plan_id=plan_id,

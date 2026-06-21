@@ -1,36 +1,20 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="tasks-page">
         <h1>任务管理</h1>
         <div class="tabs">
-          <button :class="{ active: tab === 'today' }" @click="tab = 'today'">今日任务</button>
-          <button :class="{ active: tab === 'overdue' }" @click="tab = 'overdue'">超期任务</button>
-          <button :class="{ active: tab === 'all' }" @click="tab = 'all'">全部任务</button>
+          <BaseButton :variant="tab === 'today' ? 'primary' : 'secondary'" size="sm" @click="tab = 'today'">今日任务</BaseButton>
+          <BaseButton :variant="tab === 'overdue' ? 'primary' : 'secondary'" size="sm" @click="tab = 'overdue'">超期任务</BaseButton>
+          <BaseButton :variant="tab === 'all' ? 'primary' : 'secondary'" size="sm" @click="tab = 'all'">全部任务</BaseButton>
         </div>
         <div class="task-list">
-          <div
+          <BaseCard
             v-for="task in displayedTasks"
             :key="task.id"
-            class="task-card glass"
+            elevation="raised"
+            padding="md"
+            data-guide="task-toggle"
             @click="goToDetail(task.id)"
           >
             <div class="task-info">
@@ -38,22 +22,24 @@
               <div class="task-meta">计划日期: {{ task.scheduled_date }} · {{ task.points }}积分</div>
             </div>
 
-            <!-- 悬停操作覆盖层 -->
+            <!-- B0302 Q3: 悬停操作 → BaseButton ghost 系列 -->
             <div class="task-actions-overlay" @click.stop>
-              <button
+              <BaseButton
                 v-if="task.status !== 'completed'"
+                variant="ghost"
+                size="sm"
                 @click="toggleTask(task.id)"
                 title="完成"
-              >✓</button>
-              <button v-else @click="toggleTask(task.id)" title="撤销完成">↶</button>
-              <button @click="goToDetail(task.id)" title="编辑">✎</button>
-              <button @click="goToComments(task.id)" title="评论">💬</button>
-              <button @click="confirmDelete(task.id)" title="删除" class="action-danger">✕</button>
+              >✓</BaseButton>
+              <BaseButton v-else variant="ghost" size="sm" @click="toggleTask(task.id)" title="撤销完成">↶</BaseButton>
+              <BaseButton variant="ghost" size="sm" @click="goToDetail(task.id)" title="编辑">✎</BaseButton>
+              <BaseButton variant="ghost" size="sm" @click="goToComments(task.id)" title="评论">💬</BaseButton>
+              <BaseButton variant="ghost" size="sm" @click="confirmDelete(task.id)" title="删除">✕</BaseButton>
             </div>
 
             <!-- 已完成徽章：悬停时通过 CSS 隐藏 -->
             <span v-if="task.status === 'completed'" class="completed-badge">已完成</span>
-          </div>
+          </BaseCard>
           <div v-if="!displayedTasks.length" class="empty-state">暂无任务</div>
         </div>
       </div>
@@ -76,6 +62,9 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTasksStore } from '@/stores/tasks'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+// B0302 Q3: BaseButton + BaseCard 替代 raw button/div.task-card
+import BaseButton from '@/components/base/BaseButton.vue'
+import BaseCard from '@/components/base/BaseCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

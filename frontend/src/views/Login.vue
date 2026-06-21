@@ -1,18 +1,21 @@
 <template>
   <div class="auth-page">
     <div class="auth-card glass">
+      <!-- PR0013: 会话过期 banner -->
+      <div v-if="expired" class="expired-banner" role="alert">会话已过期，请重新登录</div>
       <h1>登录</h1>
       <form @submit.prevent="handleLogin">
         <div class="form-group">
-          <label>邮箱</label>
-          <input
+          <!-- B0302: 迁 BaseInput -->
+          <BaseInput
             v-model="formData.email"
             type="email"
+            label="邮箱"
             placeholder="请输入邮箱"
-            :class="{ error: getError('email') }"
+            :error="!!getError('email')"
+            :error-message="getError('email') || ''"
             @blur="setTouched('email')"
           />
-          <div v-if="getError('email')" class="field-error">{{ getError('email') }}</div>
         </div>
         <div class="form-group">
           <label>密码</label>
@@ -36,16 +39,22 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useFormValidation, required, email } from '@/composables/useFormValidation'
 import PasswordInput from '@/components/common/PasswordInput.vue'
+// B0302: 统一表单基元
+import BaseInput from '@/components/base/BaseInput.vue'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
+
+// PR0013: 监听 query.reason 显示 banner
+const expired = computed(() => route.query.reason === 'expired')
 
 const formData = ref({ email: '', password: '' })
 const loading = ref(false)

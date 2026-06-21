@@ -6,7 +6,8 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import Driver from 'driver.js'
+// v2.18: driver.js@1.4.0 命名导出 { driver }，无 default — Rollup build 要求
+import { driver as Driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 
 const props = defineProps({

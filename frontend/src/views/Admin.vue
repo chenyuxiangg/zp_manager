@@ -1,22 +1,5 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="admin-page">
         <h1>用户管理</h1>
@@ -39,13 +22,13 @@
                 </div>
               </div>
               <div class="user-actions">
-                <button
+                <BaseButton
                   v-if="user.id !== authStore.user?.id"
-                  @click="deleteUser(user)"
-                  class="btn-danger"
+                  variant="danger"
+                  @click="askDelete(user)"
                 >
                   删除用户
-                </button>
+                </BaseButton>
                 <span v-else class="self-label">当前账号</span>
               </div>
             </div>
@@ -56,60 +39,84 @@
         </div>
       </div>
     </main>
+    <!-- B0280/B0308: 用 ConfirmDialog 替代原生 confirm -->
+    <ConfirmDialog
+      :visible="showDeleteConfirm"
+      title="确认删除用户"
+      :message="deletePrompt"
+      :is-danger="true"
+      :loading="deleteLoading"
+      confirm-text="删除"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { adminApi } from '@/api'
+// v2.18: B0303 彻底化 — 走 store actions，不再 raw adminApi
+import { useAdminStore } from '@/stores/admin'
+import { useToast } from '@/composables/useToast'
+// B0254: 用基元组件替代原始 button
+import BaseButton from '@/components/base/BaseButton.vue'
+// B0280/B0308: 用 ConfirmDialog 替代原生 confirm/alert
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const users = ref([])
-const loading = ref(false)
-const error = ref('')
-const currentPage = ref(1)
-const hasMore = ref(false)
+const adminStore = useAdminStore()
+const toast = useToast()
+// 从 store 同步本地 reactive
+const users = computed(() => adminStore.users)
+const loading = computed(() => adminStore.loading)
+const error = computed(() => adminStore.error)
+const hasMore = computed(() => adminStore.hasMore)
+// B0280/B0308: ConfirmDialog 状态
+const showDeleteConfirm = ref(false)
+const pendingDeleteUser = ref(null)
+const deleteLoading = ref(false)
+const deletePrompt = computed(() =>
+  pendingDeleteUser.value
+    ? `确定要删除用户"${pendingDeleteUser.value.username}"吗？该用户的所有数据将被永久删除。`
+    : ''
+)
 
 onMounted(async () => {
   if (!authStore.user?.is_admin) {
-    error.value = '无权限访问'
     return
   }
-  await loadUsers()
+  await adminStore.fetchUsers({ page: 1, limit: 20 })
 })
 
-async function loadUsers() {
-  loading.value = true
-  error.value = ''
-  const res = await adminApi.getUsers({ page: 1, limit: 20 })
-  loading.value = false
-  if (res.success) {
-    users.value = res.data.users || []
-    hasMore.value = users.value.length >= 20
-  } else {
-    error.value = res.error?.message || '加载失败'
-  }
-}
-
 async function loadMore() {
-  currentPage.value++
-  const res = await adminApi.getUsers({ page: currentPage.value, limit: 20 })
-  if (res.success) {
-    users.value.push(...(res.data.users || []))
-    hasMore.value = res.data.users?.length >= 20
-  }
+  await adminStore.loadMoreUsers()
 }
 
-async function deleteUser(user) {
-  if (!confirm(`确定要删除用户"${user.username}"吗？该用户的所有数据将被永久删除。`)) return
-  const res = await adminApi.deleteUser(user.id)
+// B0280/B0308: 拆 askDelete / confirmDelete / cancelDelete
+function askDelete(user) {
+  pendingDeleteUser.value = user
+  showDeleteConfirm.value = true
+}
+function cancelDelete() {
+  showDeleteConfirm.value = false
+  pendingDeleteUser.value = null
+  deleteLoading.value = false
+}
+async function confirmDelete() {
+  const user = pendingDeleteUser.value
+  if (!user) return
+  deleteLoading.value = true
+  const res = await adminStore.deleteUser(user.id)
+  deleteLoading.value = false
   if (res.success) {
-    users.value = users.value.filter(u => u.id !== user.id)
+    toast.success(`用户"${user.username}"已删除`)
+    cancelDelete()
   } else {
-    alert(res.error?.message || '删除失败')
+    toast.error(res.error?.message || '删除失败')
+    cancelDelete()
   }
 }
 

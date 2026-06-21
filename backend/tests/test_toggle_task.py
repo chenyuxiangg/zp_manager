@@ -6,6 +6,20 @@ from datetime import date, datetime, timedelta
 from models import PointLog, Task
 
 
+# B0331：RR1 既有的撤销测试需要 mock 掉 RateGuard，否则会被 PR0003 30 分钟
+# 窗口拦截。撤销行为本身是 RR1 既有功能，独立于反刷分守卫。
+@pytest.fixture
+def bypass_rate_guard(monkeypatch):
+    """临时让 RateGuard.can_toggle 永远返回 True，绕过 30 分钟窗口。
+
+    用于测试 RR1 既有的撤销逻辑（积分回滚 / 状态机 / PointLog 审计）。
+    反刷分窗口本身的测试见 tests/test_rate_guard.py。
+    """
+    from services.rate_guard import RateGuard
+    monkeypatch.setattr(RateGuard, 'can_toggle',
+                        staticmethod(lambda *a, **kw: (True, 0)))
+
+
 class TestTogglePendingToCompleted:
     """pending → completed：加积分"""
 
@@ -40,22 +54,22 @@ class TestTogglePendingToCompleted:
 class TestToggleCompletedToPending:
     """completed → pending：扣积分（D1 决策）"""
 
-    def test_toggle_completed_task_returns_pending_status(self, client, auth_headers, task):
+    def test_toggle_completed_task_returns_pending_status(self, client, auth_headers, task, bypass_rate_guard):
         # 先完成
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
-        # 再撤销
+        # 再撤销（B0331：bypass_rate_guard 让撤销不被 30min 窗口拦）
         res = client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
         assert res.status_code == 200
         body = res.get_json()
         assert body['data']['task']['status'] == 'pending'
         assert body['data']['task']['completed_at'] is None
 
-    def test_toggle_uncomplete_returns_negative_points_delta(self, client, auth_headers, task):
+    def test_toggle_uncomplete_returns_negative_points_delta(self, client, auth_headers, task, bypass_rate_guard):
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)  # +10
         res = client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)  # -10
         assert res.get_json()['data']['points_delta'] == -10
 
-    def test_toggle_uncomplete_deducts_user_points(self, client, auth_headers, task, user, session):
+    def test_toggle_uncomplete_deducts_user_points(self, client, auth_headers, task, user, session, bypass_rate_guard):
         user.points = 0
         session.commit()
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
@@ -64,7 +78,7 @@ class TestToggleCompletedToPending:
         session.refresh(user)
         assert user.points == 0
 
-    def test_toggle_uncomplete_keeps_point_log_for_audit(self, client, auth_headers, task, session):
+    def test_toggle_uncomplete_keeps_point_log_for_audit(self, client, auth_headers, task, session, bypass_rate_guard):
         """撤销完成不删除 PointLog（保留审计）"""
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
@@ -88,7 +102,7 @@ class TestToggleOverdueTask:
         assert user.points == 5
 
     def test_overdue_task_uncomplete_rolls_back_half_points(
-        self, client, auth_headers, task, user, session
+        self, client, auth_headers, task, user, session, bypass_rate_guard
     ):
         task.scheduled_date = date.today() - timedelta(days=2)
         user.points = 0
@@ -103,10 +117,10 @@ class TestToggleOverdueTask:
 class TestTogglePointsFloor:
     """积分下限保护：撤销不能扣成负数"""
 
-    def test_user_points_never_negative(self, client, auth_headers, task, user, session):
+    def test_user_points_never_negative(self, client, auth_headers, task, user, session, bypass_rate_guard):
         user.points = 0
         session.commit()
-        # 反复 toggle 3 次（+10, -10, +10）
+        # 反复 toggle 3 次（+10, -10, +10），bypass_rate_guard 让撤销不被 30min 窗口拦
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)
         client.patch(f'/api/tasks/{task.id}/toggle', headers=auth_headers)

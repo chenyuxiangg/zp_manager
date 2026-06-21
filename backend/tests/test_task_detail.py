@@ -66,7 +66,8 @@ class TestGetTaskNotFound:
         assert res.status_code == 404
         body = res.get_json()
         assert body['success'] is False
-        assert body['error']['code'] == 'NOT_FOUND'
+        # PR0017：NOT_FOUND → RESOURCE_NOT_FOUND
+        assert body['error']['code'] == 'RESOURCE_NOT_FOUND'
 
     def test_get_other_users_task_returns_403(self, client, auth_headers, other_user, stage, session):
         """权限隔离：他人 task 返回 403（D7 决策：存在但属于他人）"""

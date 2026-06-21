@@ -1,31 +1,13 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="plans-page">
         <div class="page-header">
           <h1>学习计划</h1>
           <div class="header-actions">
-            <button @click="openTemplatesModal">从模板创建</button>
-            <button @click="openImportModal">导入计划</button>
-            <button @click="showCreate = true">新建计划</button>
+            <BaseButton variant="secondary" @click="openTemplatesModal">从模板创建</BaseButton>
+            <BaseButton variant="secondary" @click="openImportModal">导入计划</BaseButton>
+            <BaseButton variant="primary" data-guide="create-plan" @click="showCreate = true">新建计划</BaseButton>
           </div>
         </div>
 
@@ -112,8 +94,8 @@
             </div>
           </div>
           <div class="form-actions">
-            <button type="button" @click="closeCreateModal">取消</button>
-            <button type="submit">创建</button>
+            <BaseButton variant="secondary" type="button" @click="closeCreateModal">取消</BaseButton>
+            <BaseButton variant="primary" type="submit">创建</BaseButton>
           </div>
         </form>
       </div>
@@ -175,6 +157,18 @@
         </div>
       </div>
     </div>
+
+    <!-- B0280/B0308: 模板删除 ConfirmDialog -->
+    <ConfirmDialog
+      :visible="showDeleteTemplateConfirm"
+      title="确认删除模板"
+      :message="deleteTemplatePrompt"
+      :is-danger="true"
+      :loading="deleteTemplateLoading"
+      confirm-text="删除"
+      @confirm="confirmDeleteTemplate"
+      @cancel="cancelDeleteTemplate"
+    />
   </div>
 </template>
 
@@ -187,7 +181,9 @@ import { useToast } from '@/composables/useToast'
 import { useFormValidation, required, maxLength } from '@/composables/useFormValidation'
 import SkeletonPlanCard from '@/components/common/SkeletonPlanCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import api from '@/api'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+// B0254: 用基元组件替代原始 button
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -206,6 +202,15 @@ const selectedFile = ref(null)
 const fileInput = ref(null)
 const isDragging = ref(false)
 const importing = ref(false)
+// B0280/B0308: 删除模板的 ConfirmDialog 状态
+const showDeleteTemplateConfirm = ref(false)
+const pendingDeleteTemplate = ref(null)
+const deleteTemplateLoading = ref(false)
+const deleteTemplatePrompt = computed(() =>
+  pendingDeleteTemplate.value
+    ? `确定要删除模板"${pendingDeleteTemplate.value.title}"吗？`
+    : ''
+)
 
 // 搜索和筛选
 const searchQuery = ref('')
@@ -292,7 +297,7 @@ async function handleCreatePlan() {
 
 async function loadTemplates() {
   templatesLoading.value = true
-  const res = await api.get('/plan-templates')
+  const res = await plansStore.fetchTemplates()
   templatesLoading.value = false
   if (res.success) templates.value = res.data.templates
 }
@@ -308,9 +313,20 @@ function cancelTemplate() {
 }
 
 async function deleteTemplate(t) {
-  if (!confirm(`确定要删除模板"${t.title}"吗？`)) return
+  pendingDeleteTemplate.value = t
+  showDeleteTemplateConfirm.value = true
+}
+function cancelDeleteTemplate() {
+  showDeleteTemplateConfirm.value = false
+  pendingDeleteTemplate.value = null
+  deleteTemplateLoading.value = false
+}
+async function confirmDeleteTemplate() {
+  const t = pendingDeleteTemplate.value
+  if (!t) return
+  deleteTemplateLoading.value = true
   try {
-    const res = await api.delete(`/plan-templates/${t.id}`)
+    const res = await plansStore.deleteTemplate(t.id)
     if (res.success) {
       toast.success('模板已删除')
       await loadTemplates()
@@ -319,6 +335,9 @@ async function deleteTemplate(t) {
     }
   } catch (e) {
     toast.error(e?.response?.data?.error?.message || '删除失败')
+  } finally {
+    deleteTemplateLoading.value = false
+    cancelDeleteTemplate()
   }
 }
 
@@ -328,10 +347,10 @@ async function handleCreateFromTemplate() {
     return
   }
   try {
-    const res = await api.post('/plan-templates/from-template', {
-      template_id: selectedTemplate.value.id,
-      start_date: templateStartDate.value
-    })
+    const res = await plansStore.createPlanFromTemplate(
+      selectedTemplate.value.id,
+      templateStartDate.value
+    )
     if (res && res.success) {
       toast.success('计划创建成功')
       showTemplates.value = false
@@ -396,9 +415,7 @@ async function handleImportPlan() {
   formData.append('file', selectedFile.value)
 
   try {
-    const res = await api.post('/plan-templates/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const res = await plansStore.importTemplate(formData)
     if (res.success) {
       toast.success('导入成功')
       closeImportModal()

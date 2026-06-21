@@ -1,0 +1,11 @@
+/* B0296 — 全局可复用动画 (避免 Skeleton + SkeletonPlanCard 重复 @keyframes shimmer) */
+@keyframes shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@keyframes float-up-animation {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  50%  { opacity: 1; transform: translateY(-30px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+}

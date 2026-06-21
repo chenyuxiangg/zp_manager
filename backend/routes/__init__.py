@@ -8,10 +8,11 @@ reports_bp = None
 users_bp = None
 templates_bp = None
 admin_bp = None
+pomodoro_bp = None
 
 
 def register_blueprints(app):
-    global auth_bp, plans_bp, stages_bp, tasks_bp, reports_bp, users_bp, templates_bp, admin_bp
+    global auth_bp, plans_bp, stages_bp, tasks_bp, reports_bp, users_bp, templates_bp, admin_bp, pomodoro_bp
 
     from .auth import auth_bp
     from .plans import plans_bp
@@ -21,6 +22,7 @@ def register_blueprints(app):
     from .users import users_bp
     from .plan_templates import templates_bp
     from .admin import admin_bp
+    from .pomodoro import pomodoro_bp  # PR0021
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(plans_bp)
@@ -30,3 +32,4 @@ def register_blueprints(app):
     app.register_blueprint(users_bp)
     app.register_blueprint(templates_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(pomodoro_bp)

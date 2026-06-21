@@ -1,23 +1,5 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="settings-page">
         <h1>设置</h1>
@@ -54,6 +36,59 @@
           </button>
         </div>
 
+        <!-- B0253: 番茄钟设置 (PR0022 §3 共享 Settings 入口) -->
+        <div class="settings-section glass">
+          <h2>番茄钟</h2>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" v-model="notifyConfig.pomodoro.break_enabled" />
+              专注后开启休息
+            </label>
+          </div>
+          <div class="form-group">
+            <!-- B0302: 迁 BaseInput (number 类型) -->
+            <BaseInput
+              type="number"
+              label="休息时长（分钟）"
+              :model-value="notifyConfig.pomodoro.break_minutes"
+              @update:model-value="(v) => notifyConfig.pomodoro.break_minutes = Number(v)"
+              :min="1"
+              :max="30"
+            />
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" v-model="notifyConfig.pomodoro.background_keep_alive" />
+              后台运行时继续计时
+            </label>
+          </div>
+        </div>
+
+        <!-- B0253: Streak 里程碑 (PR0009) -->
+        <div class="settings-section glass">
+          <h2>Streak 里程碑</h2>
+          <div class="form-group">
+            <label>当前目标</label>
+            <select v-model.number="notifyConfig.streak.next_milestone">
+              <option :value="7">7 天</option>
+              <option :value="30">30 天</option>
+              <option :value="100">100 天</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" v-model="notifyConfig.streak.flame_visible" />
+              仪表盘显示火焰图标
+            </label>
+          </div>
+        </div>
+
+        <!-- B0253: 引导与新功能 (PR0012) -->
+        <div class="settings-section glass">
+          <h2>引导与新功能</h2>
+          <button @click="restartOnboarding">重新观看 5 步引导</button>
+        </div>
+
         <div class="settings-section glass">
           <h2>积分历史</h2>
           <div v-if="pointsHistory.length" class="points-history">
@@ -79,7 +114,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import api from '@/api'
+// B0303: 通过 store action 调用 notify-config / points-history
+// B0253: 替换 alert 为 useToast
+import { useToast } from '@/composables/useToast'
+// B0302: 统一表单基元
+import BaseInput from '@/components/base/BaseInput.vue'
+const toast = useToast()
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -87,7 +127,18 @@ const saving = ref(false)
 const notifyConfig = ref({
   learn_reminder: { enabled: true, timing: '1 day', channels: ['email'] },
   verify_reminder: { enabled: true, timing: 'on due', channels: ['email'] },
-  email: ''
+  email: '',
+  // B0253: 4 段新增字段默认值（与 PR0022 §3 DEFAULTS 对齐）
+  onboarded: false,
+  pomodoro: {
+    break_enabled: true,
+    break_minutes: 5,
+    background_keep_alive: true,
+  },
+  streak: {
+    next_milestone: 7,
+    flame_visible: true,
+  },
 })
 const pointsHistory = ref([])
 const currentPage = ref(1)
@@ -101,7 +152,7 @@ onMounted(async () => {
 })
 
 async function loadPointsHistory() {
-  const res = await api.get('/users/points/history', { params: { page: 1, limit: 20 } })
+  const res = await authStore.fetchPointsHistory({ page: 1, limit: 20 })
   if (res.success) {
     pointsHistory.value = res.data.logs || []
     hasMore.value = pointsHistory.value.length >= 20
@@ -110,7 +161,7 @@ async function loadPointsHistory() {
 
 async function loadMorePoints() {
   currentPage.value++
-  const res = await api.get('/users/points/history', { params: { page: currentPage.value, limit: 20 } })
+  const res = await authStore.fetchPointsHistory({ page: currentPage.value, limit: 20 })
   if (res.success) {
     pointsHistory.value.push(...(res.data.logs || []))
     hasMore.value = res.data.logs?.length >= 20
@@ -119,16 +170,32 @@ async function loadMorePoints() {
 
 async function saveNotifyConfig() {
   saving.value = true
-  const res = await api.put('/users/notify-config', { notify_config: notifyConfig.value })
+  // B0304: 统一 payload 形状 { onboarded, learn_reminder, ... }
+  const res = await authStore.updateNotifyConfig(notifyConfig.value)
   saving.value = false
   if (res.success) {
-    alert('设置已保存')
+    // B0253: 替换 alert 为 useToast.success
+    toast.success('设置已保存')
+  } else {
+    toast.error(res.error || '保存失败')
   }
 }
 
 async function handleLogout() {
   await authStore.logout()
   router.push('/login')
+}
+
+// B0253: 重新观看引导 (PR0012 入口)
+async function restartOnboarding() {
+  try {
+    // B0304: 统一端点 — setOnboarded(false) 走 PUT /users/notify-config {onboarded: false}
+    await authStore.setOnboarded(false)
+    // 跳 /dashboard，由 App.vue onMounted 检测 shouldShow 后启动 tour
+    router.push('/dashboard')
+  } catch (e) {
+    toast.error('重启引导失败')
+  }
 }
 </script>
 

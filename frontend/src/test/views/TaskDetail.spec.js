@@ -450,4 +450,26 @@ describe('TaskDetail.vue', () => {
       expect(mockTasksStore.updateComment).toHaveBeenCalledWith('42', 1, '<p>Updated</p>')
     })
   })
+
+  // B0292 — XSS 防御：task.description 必须经过 sanitize 才能 v-html
+  describe('【B0292 XSS】 task.description 渲染', () => {
+    it('imports sanitizeHtml from @/utils/sanitize', async () => {
+      const fs = await import('fs')
+      const path = require('path')
+      const source = fs.readFileSync(path.resolve(__dirname, '../../views/TaskDetail.vue'), 'utf-8')
+      expect(source).toMatch(/import\s*\{[^}]*sanitizeHtml[^}]*\}\s*from\s*['"]@\/utils\/sanitize['"]/)
+    })
+
+    it('v-html="task.description" 必须先 sanitize', async () => {
+      const fs = await import('fs')
+      const path = require('path')
+      const source = fs.readFileSync(path.resolve(__dirname, '../../views/TaskDetail.vue'), 'utf-8')
+
+      // 找到 task.description 的 v-html 行
+      const match = source.match(/v-html="([^"]*task\.description[^"]*)"/)
+      expect(match, '必须存在 v-html 渲染 task.description').not.toBeNull()
+      // v-html 的表达式必须调用 sanitizeHtml
+      expect(match[1]).toMatch(/sanitizeHtml/)
+    })
+  })
 })

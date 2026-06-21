@@ -13,18 +13,18 @@ import Admin from '@/views/Admin.vue'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/login', component: Login },
-  { path: '/register', component: Register },
-  { path: '/forgot-password', component: ForgotPassword },
-  { path: '/reset-password', component: ResetPassword },
-  { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
-  { path: '/plans', component: Plans, meta: { requiresAuth: true } },
-  { path: '/plans/:id', component: PlanDetail, meta: { requiresAuth: true } },
-  { path: '/tasks', component: Tasks, meta: { requiresAuth: true } },
-  { path: '/tasks/:id', component: () => import('@/views/TaskDetail.vue'), meta: { requiresAuth: true } },
-  { path: '/reports', component: Reports, meta: { requiresAuth: true } },
-  { path: '/settings', component: Settings, meta: { requiresAuth: true } },
-  { path: '/admin', component: Admin, meta: { requiresAuth: true } },
+  { path: '/login', component: Login, meta: { layout: 'auth' } },
+  { path: '/register', component: Register, meta: { layout: 'auth' } },
+  { path: '/forgot-password', component: ForgotPassword, meta: { layout: 'auth' } },
+  { path: '/reset-password', component: ResetPassword, meta: { layout: 'auth' } },
+  { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/plans', component: Plans, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/plans/:id', component: PlanDetail, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/tasks', component: Tasks, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/tasks/:id', component: () => import('@/views/TaskDetail.vue'), meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/reports', component: Reports, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/settings', component: Settings, meta: { requiresAuth: true, layout: 'app' } },
+  { path: '/admin', component: Admin, meta: { requiresAuth: true, layout: 'app' } },
 ]
 
 const router = createRouter({
@@ -35,6 +35,8 @@ const router = createRouter({
 const publicPages = ['/login', '/register', '/forgot-password', '/reset-password']
 
 router.beforeEach((to, from, next) => {
+  // 防御 1: 未设 meta.layout 默认 'app' (PR0014)
+  if (!to.meta.layout) to.meta.layout = 'app'
   const token = localStorage.getItem('token')
   if (to.meta.requiresAuth && !token) {
     next('/login')

@@ -42,6 +42,29 @@ MAIL_DEFAULT_SENDER="${MAIL_DEFAULT_SENDER:-noreply@example.com}"
 export FLASK_APP DATABASE_URL SECRET_KEY JWT_SECRET_KEY
 export MAIL_SERVER MAIL_PORT MAIL_USE_TLS MAIL_USERNAME MAIL_PASSWORD MAIL_DEFAULT_SENDER
 
+# ──────────────────────────────────────────────────────────────────────
+# B0319: 启动前自动检测 + 跑 alembic 升级（开发期体验）
+# - 全新 DB → `flask db upgrade` 一次性创建所有表（避免 500）
+# - 已迁移 DB → `flask db upgrade` 幂等 no-op（不会回滚或破坏）
+# - 生产环境如需手动控制：设 `ZP_SKIP_AUTO_UPGRADE=1` 跳过
+# - release.sh 应在生产部署前手动调用 `flask db upgrade`（由 release 流水线控制）
+# ──────────────────────────────────────────────────────────────────────
+if [ "${ZP_SKIP_AUTO_UPGRADE:-0}" != "1" ]; then
+  echo "[start.sh] Running alembic upgrade (B0319: auto-detect & upgrade)..."
+  if ! flask db upgrade >> ../logs/backend.log 2>&1; then
+    echo "[start.sh] WARNING: alembic upgrade failed; trying stamp+upgrade fallback" >&2
+    # 退化策略：若 alembic_version 表缺失，先 stamp 到 baseline 再 upgrade
+    flask db stamp head >> ../logs/backend.log 2>&1 || true
+    flask db upgrade >> ../logs/backend.log 2>&1 || {
+      echo "[start.sh] FATAL: alembic upgrade failed even after stamp fallback. Start manually: 'flask db upgrade'" >&2
+      exit 1
+    }
+  fi
+  echo "[start.sh] alembic upgrade OK"
+else
+  echo "[start.sh] ZP_SKIP_AUTO_UPGRADE=1, skipping auto upgrade (production mode)"
+fi
+
 # 启动
 mkdir -p ../logs
 flask run -h 0.0.0.0 -p 5000 >> ../logs/backend.log 2>&1

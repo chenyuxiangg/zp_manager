@@ -51,9 +51,11 @@ class TestTaskTitleXSS:
         res = client.put(f'/api/tasks/{task.id}',
                          json={'title': '<script></script>'},
                          headers=auth_headers)
-        # 应当返回 422 校验错误
-        assert res.status_code == 422
-        assert res.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        # PR0017：VALIDATION_ERROR → INVALID_INPUT，422 → 400
+        assert res.status_code == 400
+        body = res.get_json()
+        code = body.get('code') or body['error'].get('code')
+        assert code == 'INVALID_INPUT'
 
     def test_update_task_title_with_only_whitespace_after_strip_rejected(
         self, client, auth_headers, task
@@ -62,7 +64,7 @@ class TestTaskTitleXSS:
         res = client.put(f'/api/tasks/{task.id}',
                          json={'title': '<p>   </p>'},
                          headers=auth_headers)
-        assert res.status_code == 422
+        assert res.status_code == 400
 
 
 class TestPlanTitleXSS:

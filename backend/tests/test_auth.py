@@ -66,19 +66,25 @@ class TestLoginSuccess:
 
 
 class TestLoginValidation:
-    """输入校验回归测试"""
+    """输入校验回归测试（PR0017：VALIDATION_ERROR → INVALID_INPUT，422 → 400）"""
 
-    def test_login_missing_email_returns_validation_error(self, client):
+    def test_login_missing_email_returns_invalid_input(self, client):
         res = client.post('/api/auth/login', json={'password': 'x'})
-        assert res.status_code == 422
-        assert res.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert res.status_code == 400
+        body = res.get_json()
+        code = body.get('code') or body['error'].get('code')
+        assert code == 'INVALID_INPUT'
 
-    def test_login_missing_password_returns_validation_error(self, client):
+    def test_login_missing_password_returns_invalid_input(self, client):
         res = client.post('/api/auth/login', json={'email': 'a@b.com'})
-        assert res.status_code == 422
-        assert res.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert res.status_code == 400
+        body = res.get_json()
+        code = body.get('code') or body['error'].get('code')
+        assert code == 'INVALID_INPUT'
 
-    def test_login_empty_body_returns_validation_error(self, client):
+    def test_login_empty_body_returns_invalid_input(self, client):
         res = client.post('/api/auth/login', json={})
-        assert res.status_code == 422
-        assert res.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert res.status_code == 400
+        body = res.get_json()
+        code = body.get('code') or body['error'].get('code')
+        assert code == 'INVALID_INPUT'

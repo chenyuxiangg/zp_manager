@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g, current_app
 from models import db, User, TokenBlacklist
-from utils import generate_token, token_required, create_response
+from utils import generate_token, token_required, create_response, decode_token
+from utils import error_codes as ec  # PR0017
 from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -14,20 +15,21 @@ def register():
     password = data.get('password')
 
     if not all([username, email, password]):
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Missing required fields'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='缺少必填字段')
 
     if User.query.filter_by(email=email).first():
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Email already registered'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='Email already registered')
 
     if User.query.filter_by(username=username).first():
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Username already taken'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='Username already taken')
 
     user = User(username=username, email=email)
     user.set_password(password)
     user.notify_config = {
         'learn_reminder': {'enabled': True, 'timing': '1 day', 'channels': ['email']},
         'verify_reminder': {'enabled': True, 'timing': 'on due', 'channels': ['email']},
-        'email': email
+        'email': email,
+        'onboarded': False,  # PR0012: 新用户引导字段
     }
     db.session.add(user)
     db.session.commit()
@@ -43,11 +45,11 @@ def login():
     password = data.get('password')
 
     if not all([email, password]):
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Missing required fields'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='缺少必填字段')
 
     user = User.query.filter_by(email=email).first()
     if not user or not user.check_password(password):
-        return jsonify(create_response(success=False, error={'code': 'INVALID_CREDENTIALS', 'message': '用户名或密码不正确'})), 401
+        return ec.unauthorized(ec.INVALID_CREDENTIALS)
 
     token, jti, expires_at = generate_token(user.id)
     return jsonify(create_response(data={'token': token, 'user': {'id': user.id, 'username': user.username, 'email': user.email, 'points': user.points, 'is_admin': user.is_admin}}))
@@ -56,10 +58,15 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 @token_required
 def logout():
-    from flask import current_app
-    import jwt
-    token = request.headers.get('Authorization').split(' ')[1]
-    payload = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+    # B0230：复用 verify_token() 去重（不再直接 jwt.decode）
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify(create_response(message='Logged out successfully'))
+    token = auth_header.split(' ')[1]
+    payload = decode_token(token)
+    if not payload:
+        # token 校验失败：仍返 200（登出 idempotent）
+        return jsonify(create_response(message='Logged out successfully'))
 
     blacklisted = TokenBlacklist(
         jti=payload['jti'],
@@ -85,7 +92,7 @@ def forgot_password():
     data = request.get_json()
     email = data.get('email')
     if not email:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Email is required'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='Email is required')
 
     user = User.query.filter_by(email=email).first()
     if not user:
@@ -125,7 +132,9 @@ Zpersion 学习管理系统
         )
         mail.send(msg)
     except Exception as e:
-        print(f"[Auth] Failed to send password reset email: {e}")
+        # B0231：改用 current_app.logger
+        from flask import current_app
+        current_app.logger.warning(f'[Auth] Failed to send password reset email: {e}')
 
     return jsonify(create_response(message='If the email exists, a reset link has been sent'))
 
@@ -138,14 +147,14 @@ def reset_password():
     new_password = data.get('new_password')
 
     if not all([token, new_password]):
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Missing required fields'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='缺少必填字段')
 
     user = User.query.filter_by(reset_token=token).first()
     if not user:
-        return jsonify(create_response(success=False, error={'code': 'AUTH_ERROR', 'message': 'Invalid or expired token'})), 401
+        return ec.bad_request(ec.RESET_TOKEN_INVALID, message='Invalid or expired token')
 
     if user.reset_token_expires_at < datetime.utcnow():
-        return jsonify(create_response(success=False, error={'code': 'AUTH_ERROR', 'message': 'Token has expired'})), 401
+        return ec.bad_request(ec.RESET_TOKEN_INVALID, message='Token has expired')
 
     user.set_password(new_password)
     user.reset_token = None

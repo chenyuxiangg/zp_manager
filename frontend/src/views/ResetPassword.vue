@@ -9,12 +9,24 @@
 
       <form v-if="tokenValid && !success" @submit.prevent="resetPassword">
         <div class="form-group">
-          <label>新密码</label>
-          <input v-model="password" type="password" required minlength="6" placeholder="至少6位字符" />
+          <!-- B0302: 迁 BaseInput -->
+          <BaseInput
+            v-model="password"
+            type="password"
+            label="新密码"
+            placeholder="至少6位字符"
+            required
+            minlength="6"
+          />
         </div>
         <div class="form-group">
-          <label>确认密码</label>
-          <input v-model="confirmPassword" type="password" required placeholder="再次输入密码" />
+          <BaseInput
+            v-model="confirmPassword"
+            type="password"
+            label="确认密码"
+            placeholder="再次输入密码"
+            required
+          />
         </div>
         <button type="submit" :disabled="loading">
           {{ loading ? '提交中...' : '重置密码' }}
@@ -31,10 +43,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import api from '@/api'
+import { useAuthStore } from '@/stores/auth'
+// B0302: 统一表单基元
+import BaseInput from '@/components/base/BaseInput.vue'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 
 const token = ref('')
 const tokenValid = ref(false)
@@ -69,10 +84,7 @@ async function resetPassword() {
   error.value = ''
 
   try {
-    const res = await api.post('/auth/reset-password', {
-      token: token.value,
-      new_password: password.value
-    })
+    const res = await authStore.resetPassword(token.value, password.value)
     if (res.success) {
       success.value = true
       setTimeout(() => {

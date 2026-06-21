@@ -194,14 +194,29 @@ describe('axios interceptors', () => {
   })
 
   describe('response interceptor — 403 handling', () => {
-    it('calls toast.error with "无权限操作", does not remove token', async () => {
+    it('B0311: 403 with code=NOT_OWNER → toast.error with friendly message', async () => {
+      // B0311 修复：PR0017 后端响应嵌套结构 {error:{code, message}}
+      // NOT_OWNER 走 ERROR_MESSAGES 显示「只能操作自己的资源」
       localStorage.setItem('token', 'abc123')
+      const error = {
+        response: {
+          status: 403,
+          data: { success: false, error: { code: 'NOT_OWNER', message: '只能操作自己的资源' } }
+        },
+        config: {}
+      }
+      await expect(responseErrorHandler(error)).rejects.toBe(error)
+      expect(mockToast.error).toHaveBeenCalledWith('只能操作自己的资源')
+      expect(localStorage.getItem('token')).toBe('abc123')
+    })
 
+    it('B0311: 403 without code → toast.error with "无权限操作" (RR1 兼容兜底)', async () => {
+      // B0311 修复：旧顶层无 code 时，兼容 RR1 行为显示「无权限操作」
+      localStorage.setItem('token', 'abc123')
       const error = {
         response: { status: 403, data: {} },
         config: {}
       }
-
       await expect(responseErrorHandler(error)).rejects.toBe(error)
       expect(mockToast.error).toHaveBeenCalledWith('无权限操作')
       expect(localStorage.getItem('token')).toBe('abc123')

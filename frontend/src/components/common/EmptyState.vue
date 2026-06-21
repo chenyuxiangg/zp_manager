@@ -3,13 +3,14 @@
     <div class="icon">{{ icon }}</div>
     <h3>{{ title }}</h3>
     <p v-if="description">{{ description }}</p>
-    <button v-if="actionText" @click="$emit('action')" class="btn-primary">
+    <BaseButton v-if="actionText" variant="primary" @click="$emit('action')">
       {{ actionText }}
-    </button>
+    </BaseButton>
   </div>
 </template>
 
 <script setup>
+import BaseButton from '@/components/base/BaseButton.vue'
 defineProps({
   icon: {
     type: String,

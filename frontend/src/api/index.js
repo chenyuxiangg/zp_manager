@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useToast } from '@/composables/useToast'
 import { handleMock } from '@/mocks'
+import { handleApiError } from './interceptor'
 
 // 是否走 mock 模式（开发期脱离后端联调）
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
@@ -47,41 +48,56 @@ api.interceptors.response.use(
     const config = error.config || {}
     const skipErrorToast = config.skipErrorToast === true
 
+    // B0311：401 软跳保留在 index.js（需要本地 router 实例）+ PR0013 守卫
+    // 其余 4xx/5xx/network 一律交给 handleApiError 统一处理（按 code 精确分支）
     if (error.response?.status === 401 && !skipErrorToast) {
-      // 非登录场景的 401：清除 token 并跳转登录页
-      // 登录场景：调用方传 skipErrorToast: true，由 Login.vue 自行处理错误
+      // B0287: 软跳用 router.push（不再用 location.href 硬刷，避免 in-memory state 丢失）
+      // 调用方传 skipErrorToast: true 时由 Login.vue 自行处理
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { useRouter } = require('vue-router')
+        const router = useRouter()
+        if (router.currentRoute.value.path !== '/login') {
+          router.push({ path: '/login', query: { reason: 'expired' } })
+        }
+      } catch {
+        // eslint-disable-next-line no-undef
+        if (typeof window !== 'undefined') window.location.href = '/login'
+      }
       return Promise.reject(error)
     }
 
-    if (skipErrorToast) {
-      // 跳过全局 toast，由调用方自己处理
-      return Promise.reject(error)
-    }
-
-    let toast
+    // 4xx（非401）/5xx/network：统一调 handleApiError 走 code-aware 分支
+    let toast = null
     try {
       toast = useToast()
-    } catch (e) {
-      // 如果无法获取 toast（比如在非 Vue 上下文中），降级静默
-      toast = null
+    } catch {
+      // 非 Vue 上下文（mock/单测）降级为 null，handleApiError 内会静默
     }
 
-    if (error.response?.status === 403) {
-      toast?.error('无权限操作')
-    } else if (error.response?.status >= 500) {
-      toast?.error('服务器错误，请稍后重试')
-    } else if (!error.response) {
-      toast?.error('网络连接失败，请检查网络后重试')
-    } else {
-      const message = error.response.data?.message || '操作失败'
-      toast?.error(message)
+    // 注入 router / auth 让 handleApiError 能处理 PR0013 401 + PERMISSION_DENIED 静默
+    let router = null
+    let auth = null
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const routerMod = require('vue-router')
+      router = routerMod.useRouter?.() || null
+    } catch {
+      /* 无 router 上下文（如单元测试） */
     }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const authMod = require('@/stores/auth')
+      auth = authMod.useAuthStore?.() || null
+    } catch {
+      /* 无 store 上下文 */
+    }
+
+    handleApiError(error, { toast, router, auth })
     return Promise.reject(error)
   }
 )
-
 export default api
 
 // 评论 API

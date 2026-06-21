@@ -1,23 +1,5 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="reports-page">
         <h1>学习报表</h1>
@@ -38,6 +20,26 @@
               <span>周期: {{ report.period }}</span>
               <span>{{ report.period_start }} ~ {{ report.period_end }}</span>
             </div>
+            <!-- B0250: 同比/环比 + ECharts 趋势线 + 热力图 + 移动端降级表格 -->
+            <div class="report-compare">
+              <PeriodCompareCard title="完成任务" :current="report.completed || 0" :previous="report.prev_completed || 0" unit=" 个" />
+              <PeriodCompareCard title="获得积分" :current="report.points_earned || 0" :previous="report.prev_points_earned || 0" unit=" 分" />
+              <PeriodCompareCard title="评论数" :current="report.comments || 0" :previous="report.prev_comments || 0" unit=" 条" />
+            </div>
+            <TrendLineChart v-if="!mobile && report.trend_series" :series="report.trend_series" :height="280" />
+            <!-- B0322: 年报时用 yearlyHeatmap（365 天全年）+ year prop；周/月报用 report.heatmap 兜底 -->
+            <CompletionHeatmap
+              v-if="!mobile && (yearlyHeatmap || report.heatmap)"
+              :data="reportType === 'yearly' ? yearlyHeatmap : report.heatmap"
+              :year="reportType === 'yearly' ? heatmapYear : null"
+              :height="200"
+            />
+            <MobileFallbackTable
+              v-if="mobile && report.table"
+              :title="`${report.period} 完成明细`"
+              :columns="report.table.columns"
+              :rows="report.table.rows"
+            />
             <div class="stats-row">
               <div class="stat">
                 <div class="stat-value">{{ report.summary.total_tasks }}</div>
@@ -92,22 +94,47 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import api from '@/api'
+import { useReportsStore } from '@/stores/reports'
+// B0250: 集成 4 个报表组件
+import TrendLineChart from '@/components/reports/TrendLineChart.vue'
+import CompletionHeatmap from '@/components/reports/CompletionHeatmap.vue'
+import PeriodCompareCard from '@/components/reports/PeriodCompareCard.vue'
+import MobileFallbackTable from '@/components/reports/MobileFallbackTable.vue'
+import { isMobile } from '@/composables/useECharts'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const reportsStore = useReportsStore()
 const tab = ref('generate')
 const reportType = ref('weekly')
 const report = ref(null)
+const mobile = ref(isMobile())
+
+// B0322: 年报时并发拉 yearly-heatmap（365 天热力图），周/月报时清空
+const yearlyHeatmap = ref(null)
+const heatmapYear = ref(new Date().getFullYear())
+
+onMounted(() => {
+  window.addEventListener('resize', () => { mobile.value = isMobile() })
+})
 const historyType = ref('weekly')
 const history = ref([])
 
 async function loadReport() {
-  const res = await api.get(`/reports/${reportType.value}`)
-  if (res.success) report.value = res.data.report
+  const res = await reportsStore.fetchReport(reportType.value)
+  if (res.success) {
+    report.value = res.data.report
+    // B0322: 年报时额外并发拉 yearlyHeatmap（独立端点，PR0007 设计契约）
+    if (reportType.value === 'yearly') {
+      const hmRes = await reportsStore.fetchYearlyHeatmap(heatmapYear.value)
+      if (hmRes.success) yearlyHeatmap.value = hmRes.data.days
+    } else {
+      yearlyHeatmap.value = null
+    }
+  }
 }
 
 async function switchToHistory() {
@@ -118,7 +145,7 @@ async function switchToHistory() {
 }
 
 async function loadHistory() {
-  const res = await api.get('/reports', { params: { type: historyType.value } })
+  const res = await reportsStore.fetchHistory(historyType.value)
   if (res.success) {
     history.value = res.data.reports || []
   }

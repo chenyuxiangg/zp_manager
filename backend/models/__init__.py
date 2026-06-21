@@ -19,6 +19,8 @@ class User(db.Model):
     points = db.Column(db.Integer, default=0)
     is_admin = db.Column(db.Boolean, default=False)
     notify_config = db.Column(db.JSON)
+    # PR0002：用户本地时区（IANA TZ 名），cron 归日用
+    timezone = db.Column(db.String(64), nullable=True)
     reset_token = db.Column(db.String(100))
     reset_token_expires_at = db.Column(db.DateTime)
     reset_token_sent_at = db.Column(db.DateTime)
@@ -82,6 +84,10 @@ class Stage(db.Model):
 
 class Task(db.Model):
     __tablename__ = 'tasks'
+    # B0238 + B0158：overdue scanner 按 (status, scheduled_date) 查询，加复合索引
+    __table_args__ = (
+        db.Index('idx_tasks_status_scheduled', 'status', 'scheduled_date'),
+    )
 
     id = db.Column(PKType, primary_key=True, autoincrement=True)
     user_id = db.Column(PKType, db.ForeignKey('users.id'), nullable=False)
@@ -92,6 +98,7 @@ class Task(db.Model):
     completed_at = db.Column(db.DateTime)
     points = db.Column(db.Integer, default=10)
     status = db.Column(db.Enum('pending', 'in_progress', 'completed', 'overdue'), default='pending')
+    # PR0002：扫描时刷新；RR1 字段保留（已有，但从未被代码写入）
     last_penalized_at = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -119,7 +126,34 @@ class PointLog(db.Model):
     task_id = db.Column(PKType, db.ForeignKey('tasks.id'))
     delta = db.Column(db.Integer, nullable=False)
     reason = db.Column(db.String(100), nullable=False)
+    # PR0003 / PR0015: 相关 task/comment ID 与反作弊溯源字段
+    related_task_id = db.Column(PKType, nullable=True)
+    related_comment_id = db.Column(PKType, nullable=True)
+    operation = db.Column(db.Enum('award', 'refund', 'compute'), default='award', nullable=False)
+    client_ip = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class EventOutbox(db.Model):
+    """PR0004 transactional outbox：award/refund 与 toggle 路由同事务落库
+    event_dispatcher consumer worker 拉取 published_at=NULL 的事件并 dispatch
+    """
+    __tablename__ = 'event_outbox'
+    # B0221 + B0238：添加 (published_at, id) 索引，consumer 拉取避免全表扫
+    __table_args__ = (
+        db.Index('idx_outbox_unpublished', 'published_at', 'id'),
+    )
+
+    id = db.Column(PKType, primary_key=True, autoincrement=True)
+    event_name = db.Column(db.String(64), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    related_user_id = db.Column(PKType, nullable=True)
+    related_task_id = db.Column(PKType, nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    retry_count = db.Column(db.Integer, default=0, nullable=False)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Reminder(db.Model):
@@ -133,9 +167,77 @@ class Reminder(db.Model):
     scheduled_at = db.Column(db.DateTime, nullable=False)
     sent_at = db.Column(db.DateTime)
     status = db.Column(db.Enum('pending', 'sent', 'failed'), default='pending')
-    retry_count = db.Column(db.Integer, default=0)
+    # B0239：retry_count 旧字段已废弃，由 attempt_count 承担
+    # alembic migration 兜底：ALTER TABLE reminders DROP COLUMN retry_count
+    attempt_count = db.Column(db.Integer, default=0, nullable=False)
+    next_retry_at = db.Column(db.DateTime, nullable=True)
     last_error = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class WorkerRun(db.Model):
+    """PR0001：worker 调度审计表（cron 每跑一次写一行）"""
+    __tablename__ = 'worker_runs'
+
+    id = db.Column(PKType, primary_key=True, autoincrement=True)
+    job_name = db.Column(db.String(64), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    picked = db.Column(db.Integer, default=0, nullable=False)
+    sent = db.Column(db.Integer, default=0, nullable=False)
+    failed = db.Column(db.Integer, default=0, nullable=False)
+    error = db.Column(db.Text, nullable=True)
+    host = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class OverdueRun(db.Model):
+    """PR0002：逾期扫描审计表（每日 00:05 一行）"""
+    __tablename__ = 'overdue_runs'
+
+    id = db.Column(PKType, primary_key=True, autoincrement=True)
+    run_date = db.Column(db.Date, nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    scanned = db.Column(db.Integer, default=0, nullable=False)
+    marked = db.Column(db.Integer, default=0, nullable=False)
+    error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PomodoroSession(db.Model):
+    """PR0021/PR0008：番茄钟会话记录"""
+    __tablename__ = 'pomodoro_sessions'
+
+    id = db.Column(PKType, primary_key=True, autoincrement=True)
+    user_id = db.Column(PKType, db.ForeignKey('users.id'), nullable=False)
+    task_id = db.Column(PKType, db.ForeignKey('tasks.id'), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    planned_minutes = db.Column(db.Integer, default=25, nullable=False)
+    actual_seconds = db.Column(db.Integer, nullable=True)
+    completed = db.Column(db.Boolean, default=False, nullable=False)
+    # PR0008 联动版用：本 PR 始终 False
+    auto_toggled = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class StreakLog(db.Model):
+    """PR0006：连续学习天数派生表（append-only）"""
+    __tablename__ = 'streak_logs'
+
+    id = db.Column(PKType, primary_key=True, autoincrement=True)
+    user_id = db.Column(PKType, db.ForeignKey('users.id'), nullable=False)
+    log_date = db.Column(db.Date, nullable=False)
+    completed_count = db.Column(db.Integer, default=0, nullable=False)
+    # B0223：record_count 专用于"防双调 fence"（与 completed_count 解耦）
+    # sync 路径 + outbox consumer 路径各调一次 record_completion，record_count ≤ 2
+    record_count = db.Column(db.Integer, default=0, nullable=False)
+    prev_streak = db.Column(db.Integer, default=0, nullable=False)
+    new_streak = db.Column(db.Integer, default=0, nullable=False)
+    broken = db.Column(db.Boolean, default=False, nullable=False)
+    source = db.Column(db.String(16), default='settle', nullable=False)  # backfill/settle/record
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Report(db.Model):

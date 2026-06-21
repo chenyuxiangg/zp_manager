@@ -6,8 +6,11 @@ export function useBackNavigation(fallbackPath = '/') {
   const route = useRoute()
   const stack = ref([])
 
-  // 每个 Tab 用 pathname 区分，避免多 Tab 互相覆盖
-  const TAB_KEY = `back-nav-stack-${location.pathname}`
+  // B0282: TAB_KEY 改为按调用时计算（避免 location.pathname 在 SSR/测试环境为 undefined）
+  const TAB_KEY = (() => {
+    try { return `back-nav-stack-${location?.pathname || 'default'}` }
+    catch { return 'back-nav-stack-default' }
+  })()
 
   const pushPath = (path) => {
     const current = stack.value[stack.value.length - 1]

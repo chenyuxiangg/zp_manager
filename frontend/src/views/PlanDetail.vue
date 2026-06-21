@@ -1,25 +1,7 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
-      <div class="plan-detail" v-if="plan">
+      <div class="plan-detail" v-if="plan" data-guide="plan-detail">
         <div class="page-header">
           <div class="plan-info">
             <button class="back-btn" @click="$router.push('/plans')">← 返回</button>
@@ -74,7 +56,7 @@
                       <span class="task-title">{{ task.title }}</span>
                       <span class="task-points">{{ task.points }}分</span>
                     </div>
-                    <div v-if="task.description" class="task-desc" v-html="task.description"></div>
+                    <div v-if="task.description" class="task-desc" v-html="sanitizeHtml(task.description)"></div>
                     <div class="task-meta">
                       <span>{{ task.scheduled_date }}</span>
                       <span :class="'status-' + task.status">{{ task.status }}</span>
@@ -94,7 +76,7 @@
                               <button @click="startEditComment(task.id, c)" class="btn-link">编辑</button>
                               <button @click="removeComment(task.id, c.id)" class="btn-link btn-danger">删除</button>
                             </div>
-                            <div class="comment-content" v-html="c.content"></div>
+                            <div class="comment-content" v-html="sanitizeHtml(c.content)"></div>
                             <div class="comment-time">{{ c.created_at }}</div>
                           </div>
                           <div v-if="editingComment === c.id" class="edit-comment-form">
@@ -128,179 +110,175 @@
       <div v-else class="loading">加载中...</div>
     </main>
 
-    <!-- Create Stage Modal -->
-    <div v-if="showCreateStage" class="modal" @click.self="showCreateStage = false">
-      <div class="modal-content glass">
-        <h2>添加阶段</h2>
-        <form @submit.prevent="createStage">
+    <!-- B0302 Q3: Create Stage Modal → BaseModal -->
+    <BaseModal v-model="showCreateStage" title="添加阶段" size="md">
+      <form @submit.prevent="createStage">
+        <div class="form-group">
+          <label>阶段名称</label>
+          <input v-model="newStage.title" required />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <textarea v-model="newStage.description"></textarea>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>阶段名称</label>
-            <input v-model="newStage.title" required />
+            <label>开始日期</label>
+            <input v-model="newStage.start_date" type="date" required />
           </div>
           <div class="form-group">
-            <label>描述</label>
-            <textarea v-model="newStage.description"></textarea>
+            <label>结束日期</label>
+            <input v-model="newStage.end_date" type="date" required />
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>开始日期</label>
-              <input v-model="newStage.start_date" type="date" required />
-            </div>
-            <div class="form-group">
-              <label>结束日期</label>
-              <input v-model="newStage.end_date" type="date" required />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showCreateStage = false">取消</button>
-            <button type="submit">创建</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div class="form-actions">
+          <BaseButton variant="secondary" @click="showCreateStage = false">取消</BaseButton>
+          <BaseButton variant="primary" type="submit">创建</BaseButton>
+        </div>
+      </form>
+    </BaseModal>
 
-    <!-- Edit Stage Modal -->
-    <div v-if="showEditStage" class="modal" @click.self="showEditStage = false">
-      <div class="modal-content glass">
-        <h2>编辑阶段</h2>
-        <form @submit.prevent="updateStage">
+    <!-- B0302 Q3: Edit Stage Modal → BaseModal -->
+    <BaseModal v-model="showEditStage" title="编辑阶段" size="md">
+      <form @submit.prevent="updateStage">
+        <div class="form-group">
+          <label>阶段名称</label>
+          <input v-model="editStageData.title" required />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <textarea v-model="editStageData.description"></textarea>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>阶段名称</label>
-            <input v-model="editStageData.title" required />
-          </div>
-          <div class="form-group">
-            <label>描述</label>
-            <textarea v-model="editStageData.description"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>开始日期</label>
-              <input v-model="editStageData.start_date" type="date" required />
-            </div>
-            <div class="form-group">
-              <label>结束日期</label>
-              <input v-model="editStageData.end_date" type="date" required />
-            </div>
+            <label>开始日期</label>
+            <input v-model="editStageData.start_date" type="date" required />
           </div>
           <div class="form-group">
-            <label>状态</label>
-            <select v-model="editStageData.status">
-              <option value="pending">待开始</option>
-              <option value="in_progress">进行中</option>
-              <option value="completed">已完成</option>
-            </select>
+            <label>结束日期</label>
+            <input v-model="editStageData.end_date" type="date" required />
           </div>
-          <div class="form-actions">
-            <button type="button" @click="showEditStage = false">取消</button>
-            <button type="submit">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select v-model="editStageData.status">
+            <option value="pending">待开始</option>
+            <option value="in_progress">进行中</option>
+            <option value="completed">已完成</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <BaseButton variant="secondary" @click="showEditStage = false">取消</BaseButton>
+          <BaseButton variant="primary" type="submit">保存</BaseButton>
+        </div>
+      </form>
+    </BaseModal>
 
-    <!-- Create Task Modal -->
-    <div v-if="showCreateTask" class="modal" @click.self="closeTaskModal">
-      <div class="modal-content glass">
-        <h2>添加任务</h2>
-        <form @submit.prevent="createTask">
+    <!-- B0302 Q3: Create Task Modal → BaseModal -->
+    <BaseModal v-model="showCreateTask" title="添加任务" size="md" @update:modelValue="(v) => v || closeTaskModal()">
+      <form @submit.prevent="createTask">
+        <div class="form-group">
+          <label>任务名称</label>
+          <input v-model="newTask.title" required />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <div class="editor-wrapper">
+            <QuillEditor v-model:content="newTask.description" contentType="html" theme="snow" toolbar="minimal" />
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>任务名称</label>
-            <input v-model="newTask.title" required />
+            <label>截止日期</label>
+            <input v-model="newTask.scheduled_date" type="date" required />
           </div>
           <div class="form-group">
-            <label>描述</label>
-            <div class="editor-wrapper">
-              <QuillEditor v-model:content="newTask.description" contentType="html" theme="snow" toolbar="minimal" />
-            </div>
+            <label>积分</label>
+            <input v-model.number="newTask.points" type="number" min="1" />
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>截止日期</label>
-              <input v-model="newTask.scheduled_date" type="date" required />
-            </div>
-            <div class="form-group">
-              <label>积分</label>
-              <input v-model.number="newTask.points" type="number" min="1" />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="closeTaskModal">取消</button>
-            <button type="submit">创建</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div class="form-actions">
+          <BaseButton variant="secondary" @click="closeTaskModal">取消</BaseButton>
+          <BaseButton variant="primary" type="submit">创建</BaseButton>
+        </div>
+      </form>
+    </BaseModal>
 
-    <!-- Edit Task Modal -->
-    <div v-if="showEditTask" class="modal" @click.self="showEditTask = false">
-      <div class="modal-content glass">
-        <h2>编辑任务</h2>
-        <form @submit.prevent="updateTask">
-          <div class="form-group">
-            <label>任务名称</label>
-            <input v-model="editTaskData.title" required />
+    <!-- B0302 Q3: Edit Task Modal → BaseModal -->
+    <BaseModal v-model="showEditTask" title="编辑任务" size="md">
+      <form @submit.prevent="updateTask">
+        <div class="form-group">
+          <label>任务名称</label>
+          <input v-model="editTaskData.title" required />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <div class="editor-wrapper">
+            <QuillEditor v-model:content="editTaskData.description" contentType="html" theme="snow" toolbar="minimal" />
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>描述</label>
-            <div class="editor-wrapper">
-              <QuillEditor v-model:content="editTaskData.description" contentType="html" theme="snow" toolbar="minimal" />
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>截止日期</label>
-              <input v-model="editTaskData.scheduled_date" type="date" required />
-            </div>
-            <div class="form-group">
-              <label>积分</label>
-              <input v-model.number="editTaskData.points" type="number" min="1" />
-            </div>
+            <label>截止日期</label>
+            <input v-model="editTaskData.scheduled_date" type="date" required />
           </div>
           <div class="form-group">
-            <label>状态</label>
-            <select v-model="editTaskData.status">
-              <option value="pending">待完成</option>
-              <option value="in_progress">进行中</option>
-              <option value="completed">已完成</option>
-              <option value="overdue">已超期</option>
-            </select>
+            <label>积分</label>
+            <input v-model.number="editTaskData.points" type="number" min="1" />
           </div>
-          <div class="form-actions">
-            <button type="button" @click="showEditTask = false">取消</button>
-            <button type="submit">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select v-model="editTaskData.status">
+            <option value="pending">待完成</option>
+            <option value="in_progress">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="overdue">已超期</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <BaseButton variant="secondary" @click="showEditTask = false">取消</BaseButton>
+          <BaseButton variant="primary" type="submit">保存</BaseButton>
+        </div>
+      </form>
+    </BaseModal>
 
-    <!-- Edit Plan Modal -->
-    <div v-if="showEditPlan" class="modal" @click.self="showEditPlan = false">
-      <div class="modal-content glass">
-        <h2>编辑计划</h2>
-        <form @submit.prevent="updatePlan">
-          <div class="form-group">
-            <label>计划名称</label>
-            <input v-model="editPlanData.title" required />
-          </div>
-          <div class="form-group">
-            <label>描述</label>
-            <textarea v-model="editPlanData.description"></textarea>
-          </div>
-          <div class="form-group">
-            <label>状态</label>
-            <select v-model="editPlanData.status">
-              <option value="active">进行中</option>
-              <option value="completed">已完成</option>
-              <option value="archived">已归档</option>
-            </select>
-          </div>
-          <div class="form-actions">
-            <button type="button" @click="showEditPlan = false">取消</button>
-            <button type="submit">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <!-- B0302 Q3: Edit Plan Modal → BaseModal -->
+    <BaseModal v-model="showEditPlan" title="编辑计划" size="md">
+      <form @submit.prevent="updatePlan">
+        <div class="form-group">
+          <label>计划名称</label>
+          <input v-model="editPlanData.title" required />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <textarea v-model="editPlanData.description"></textarea>
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select v-model="editPlanData.status">
+            <option value="active">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="archived">已归档</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <BaseButton variant="secondary" @click="showEditPlan = false">取消</BaseButton>
+          <BaseButton variant="primary" type="submit">保存</BaseButton>
+        </div>
+      </form>
+    </BaseModal>
+
+    <!-- B0262: 统一 ConfirmDialog (替代 4 处 window.confirm) -->
+    <ConfirmDialog
+      :visible="confirmDialog.visible"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :is-danger="confirmDialog.isDanger"
+      @update:visible="(v) => { if (!v) closeConfirm() }"
+      @confirm="async () => { await confirmDialog.onConfirm?.(); closeConfirm() }"
+      @cancel="closeConfirm"
+    />
   </div>
 </template>
 
@@ -308,10 +286,22 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePlansStore } from '@/stores/plans'
+import { useTasksStore } from '@/stores/tasks'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
-import api from '@/api'
-import { commentApi } from '@/api'
+// B0303: 通过 store actions 调用 api，不再 raw import
+// B0292: 防御性 XSS strip
+import { sanitizeHtml } from '@/utils/sanitize'
+// B0262: 用 useToast 替代 alert
+import { useToast } from '@/composables/useToast'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+// B0302 Q3 Stage A: 5 个 inline modal → BaseModal 统一封装
+import BaseModal from '@/components/base/BaseModal.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
+const toast = useToast()
+const plansStore = usePlansStore()
+const tasksStore = useTasksStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -344,12 +334,21 @@ const editCommentContent = ref('')
 
 const planId = computed(() => route.params.id)
 
+// B0262: 统一 confirm 状态 (替代 4 处 confirm())
+const confirmDialog = ref({ visible: false, title: '', message: '', onConfirm: null, isDanger: false })
+function openConfirm(opts) {
+  confirmDialog.value = { visible: true, ...opts }
+}
+function closeConfirm() {
+  confirmDialog.value = { ...confirmDialog.value, visible: false }
+}
+
 function getStageTasks(stageId) {
   return tasks.value.filter(t => t.stage_id === stageId)
 }
 
 async function loadPlanDetail() {
-  const res = await api.get(`/plans/${planId.value}`)
+  const res = await plansStore.fetchPlanDetail(planId.value)
   if (res.success) {
     plan.value = res.data.plan
     stages.value = res.data.stages || []
@@ -360,7 +359,7 @@ async function loadPlanDetail() {
 
 async function createStage() {
   try {
-    const res = await api.post(`/plans/${planId.value}/stages`, {
+    const res = await plansStore.createStage(planId.value, {
       title: newStage.value.title,
       description: newStage.value.description,
       start_date: newStage.value.start_date,
@@ -372,10 +371,10 @@ async function createStage() {
       newStage.value = { title: '', description: '', start_date: '', end_date: '' }
       await loadPlanDetail()
     } else {
-      alert(res.error?.message || '创建失败')
+      toast.error(res.error?.message || '创建失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '创建失败')
+    toast.error(e?.response?.data?.error?.message || '创建失败')
   }
 }
 
@@ -393,7 +392,7 @@ function editStage(stage) {
 
 async function updateStage() {
   try {
-    const res = await api.put(`/stages/${editStageData.value.id}`, {
+    const res = await plansStore.updateStage(editStageData.value.id, {
       title: editStageData.value.title,
       description: editStageData.value.description,
       status: editStageData.value.status
@@ -402,18 +401,28 @@ async function updateStage() {
       showEditStage.value = false
       await loadPlanDetail()
     } else {
-      alert(res.error?.message || '更新失败')
+      toast.error(res.error?.message || '更新失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '更新失败')
+    toast.error(e?.response?.data?.error?.message || '更新失败')
   }
 }
 
 async function deleteStage(stageId) {
-  if (!confirm('确定要删除这个阶段吗？阶段下的所有任务也会被删除。')) return
-  const res = await api.delete(`/stages/${stageId}`)
+  openConfirm({
+    title: '删除阶段',
+    message: '确定要删除这个阶段吗？阶段下的所有任务也会被删除。',
+    isDanger: true,
+    onConfirm: () => doDeleteStage(stageId),
+  })
+}
+async function doDeleteStage(stageId) {
+  const res = await plansStore.deleteStage(stageId)
   if (res.success) {
     await loadPlanDetail()
+    toast.success('阶段已删除')
+  } else {
+    toast.error(res.error?.message || '删除失败')
   }
 }
 
@@ -437,7 +446,7 @@ function editTask(task, stage) {
 
 async function createTask() {
   try {
-    const res = await api.post(`/stages/${newTask.value.stage_id}/tasks`, {
+    const res = await plansStore.createTask(newTask.value.stage_id, {
       title: newTask.value.title,
       description: newTask.value.description,
       scheduled_date: newTask.value.scheduled_date,
@@ -447,16 +456,16 @@ async function createTask() {
       showCreateTask.value = false
       await loadPlanDetail()
     } else {
-      alert(res.error?.message || '创建失败')
+      toast.error(res.error?.message || '创建失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '创建失败')
+    toast.error(e?.response?.data?.error?.message || '创建失败')
   }
 }
 
 async function updateTask() {
   try {
-    const res = await api.put(`/tasks/${editTaskData.value.id}`, {
+    const res = await plansStore.updateTask(editTaskData.value.id, {
       title: editTaskData.value.title,
       description: editTaskData.value.description,
       scheduled_date: editTaskData.value.scheduled_date,
@@ -466,15 +475,15 @@ async function updateTask() {
       showEditTask.value = false
       await loadPlanDetail()
     } else {
-      alert(res.error?.message || '更新失败')
+      toast.error(res.error?.message || '更新失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '更新失败')
+    toast.error(e?.response?.data?.error?.message || '更新失败')
   }
 }
 
 async function completeTask(taskId) {
-  const res = await api.put(`/tasks/${taskId}/complete`)
+  const res = await plansStore.completeTask(taskId)
   if (res.success) {
     await loadPlanDetail()
     await authStore.fetchUser()
@@ -482,37 +491,57 @@ async function completeTask(taskId) {
 }
 
 async function deleteTask(taskId) {
-  if (!confirm('确定要删除这个任务吗？')) return
-  const res = await api.delete(`/tasks/${taskId}`)
+  openConfirm({
+    title: '删除任务',
+    message: '确定要删除这个任务吗？',
+    isDanger: true,
+    onConfirm: () => doDeleteTask(taskId),
+  })
+}
+async function doDeleteTask(taskId) {
+  const res = await plansStore.deleteTask(taskId)
   if (res.success) {
     await loadPlanDetail()
+    toast.success('任务已删除')
+  } else {
+    toast.error(res.error?.message || '删除失败')
   }
 }
 
 async function deletePlan() {
-  if (!confirm('确定要删除这个计划吗？所有阶段和任务都会被删除。')) return
-  const res = await api.delete(`/plans/${planId.value}`)
+  openConfirm({
+    title: '删除计划',
+    message: '确定要删除这个计划吗？所有阶段和任务都会被删除。',
+    isDanger: true,
+    onConfirm: () => doDeletePlan(),
+  })
+}
+async function doDeletePlan() {
+  const res = await plansStore.deletePlan(planId.value)
   if (res.success) {
+    toast.success('计划已删除')
     router.push('/plans')
+  } else {
+    toast.error(res.error?.message || '删除失败')
   }
 }
 
 async function exportAsTemplate() {
   try {
-    const res = await api.post('/plan-templates', { plan_id: planId.value })
+    const res = await plansStore.createTemplate(planId.value)
     if (res.success) {
-      alert('已导出为模板')
+      toast.success('已导出为模板')
     } else {
-      alert(res.error?.message || '导出失败')
+      toast.error(res.error?.message || '导出失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '导出失败')
+    toast.error(e?.response?.data?.error?.message || '导出失败')
   }
 }
 
 async function updatePlan() {
   try {
-    const res = await api.put(`/plans/${planId.value}`, {
+    const res = await plansStore.updatePlan(planId.value, {
       title: editPlanData.value.title,
       description: editPlanData.value.description,
       status: editPlanData.value.status
@@ -521,10 +550,10 @@ async function updatePlan() {
       showEditPlan.value = false
       await loadPlanDetail()
     } else {
-      alert(res.error?.message || '更新失败')
+      toast.error(res.error?.message || '更新失败')
     }
   } catch (e) {
-    alert(e?.response?.data?.error?.message || '更新失败')
+    toast.error(e?.response?.data?.error?.message || '更新失败')
   }
 }
 
@@ -539,7 +568,7 @@ async function toggleComments(taskId) {
   }
   activeCommentTask.value = taskId
   if (!taskComments.value[taskId]) {
-    const res = await commentApi.getComments(taskId)
+    const res = await tasksStore.fetchTaskComments(taskId)
     if (res.success) {
       taskComments.value[taskId] = res.data.comments || []
     }
@@ -549,7 +578,7 @@ async function toggleComments(taskId) {
 async function submitComment(taskId) {
   const content = newComments.value[taskId]?.trim()
   if (!content) return
-  const res = await commentApi.addComment(taskId, content)
+  const res = await tasksStore.addComment(taskId, content)
   if (res.success) {
     taskComments.value[taskId] = [...(taskComments.value[taskId] || []), res.data.comment]
     newComments.value[taskId] = ''
@@ -573,7 +602,7 @@ function cancelEditComment() {
 async function saveEditComment(taskId, commentId) {
   const content = editCommentContent.value?.trim()
   if (!content) return
-  const res = await commentApi.updateComment(taskId, commentId, content)
+  const res = await tasksStore.updateComment(taskId, commentId, content)
   if (res.success) {
     const comments = taskComments.value[taskId]
     const idx = comments.findIndex(c => c.id === commentId)
@@ -587,10 +616,20 @@ async function saveEditComment(taskId, commentId) {
 }
 
 async function removeComment(taskId, commentId) {
-  if (!confirm('确定要删除这条评论吗？')) return
-  const res = await commentApi.deleteComment(taskId, commentId)
+  openConfirm({
+    title: '删除评论',
+    message: '确定要删除这条评论吗？',
+    isDanger: true,
+    onConfirm: () => doRemoveComment(taskId, commentId),
+  })
+}
+async function doRemoveComment(taskId, commentId) {
+  const res = await tasksStore.deleteComment(taskId, commentId)
   if (res.success) {
-    taskComments.value[taskId] = taskComments.value[taskId].filter(c => c.id !== commentId)
+    taskComments.value[taskId] = (taskComments.value[taskId] || []).filter(c => c.id !== commentId)
+    toast.success('评论已删除')
+  } else {
+    toast.error(res.error?.message || '删除失败')
   }
 }
 

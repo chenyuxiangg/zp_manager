@@ -1,42 +1,53 @@
 <template>
   <div class="layout">
-    <header class="header glass">
-      <div class="header-content">
-        <div class="logo">Zpersion</div>
-        <nav>
-          <router-link to="/dashboard">仪表盘</router-link>
-          <router-link to="/plans">计划</router-link>
-          <router-link to="/tasks">任务</router-link>
-          <router-link to="/reports">报表</router-link>
-          <router-link to="/settings">设置</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/admin">管理</router-link>
-        </nav>
-        <div class="user-info">
-          <span>{{ authStore.user?.username }}</span>
-          <span class="points">{{ authStore.user?.points || 0 }} 积分</span>
-          <button @click="handleLogout">退出</button>
-        </div>
-      </div>
-    </header>
     <main class="main-content">
       <div class="dashboard">
         <div class="stats-grid">
-          <div class="stat-card glass">
+          <!-- B0302 Q3: 4 个 stat-card → BaseCard -->
+          <BaseCard elevation="raised" padding="md" class="stat-card" data-guide="welcome">
             <div class="stat-label">我的积分</div>
             <div class="stat-value">{{ authStore.user?.points || 0 }}</div>
-          </div>
-          <div class="stat-card glass">
+          </BaseCard>
+          <BaseCard elevation="raised" padding="md" class="stat-card">
             <div class="stat-label">总任务</div>
             <div class="stat-value">{{ profile?.stats?.total_tasks || 0 }}</div>
-          </div>
-          <div class="stat-card glass">
+          </BaseCard>
+          <BaseCard elevation="raised" padding="md" class="stat-card">
             <div class="stat-label">已完成</div>
             <div class="stat-value">{{ profile?.stats?.completed_tasks || 0 }}</div>
-          </div>
-          <div class="stat-card glass">
+          </BaseCard>
+          <BaseCard elevation="raised" padding="md" class="stat-card">
             <div class="stat-label">超期任务</div>
             <div class="stat-value overdue">{{ profile?.stats?.overdue_tasks || 0 }}</div>
-          </div>
+          </BaseCard>
+        </div>
+        <!-- v2.18: AN0009+AN0011 — Streak + ProgressRing 接入 -->
+        <div class="streak-row">
+          <StreakCard
+            :current="streakStore.current"
+            :longest="streakStore.longest"
+            :next-milestone="streakStore.nextMilestone"
+            :days-to-next="streakStore.daysToNextMilestone"
+          />
+          <BaseCard elevation="raised" padding="md" class="progress-card">
+            <div class="stat-label">任务完成率</div>
+            <ProgressRing
+              :value="completionRate"
+              :max="100"
+              :label="`${completionRate}%`"
+              :thickness="6"
+              direction="progress"
+            />
+          </BaseCard>
+        </div>
+        <!-- v6: B0328-fix — 7/30/100 天里程碑全貌展示 -->
+        <div class="milestone-row">
+          <StreakMilestoneCard
+            :current="streakStore.current"
+            :days-to-7="streakStore.daysTo7"
+            :days-to-30="streakStore.daysTo30"
+            :days-to-100="streakStore.daysTo100"
+          />
         </div>
         <div class="section">
           <h2>今日任务</h2>
@@ -47,7 +58,7 @@
             <div v-for="task in todayTasks" :key="task.id" class="task-item glass">
               <div class="task-content">
                 <div class="task-title">{{ task.title }}</div>
-                <div v-if="task.description" class="task-desc" v-html="task.description"></div>
+                <div v-if="task.description" class="task-desc" v-html="sanitizeHtml(task.description)"></div>
               </div>
               <button
                 v-if="task.status !== 'completed'"
@@ -77,7 +88,7 @@
             <div v-for="task in overdueTasks" :key="task.id" class="task-item glass overdue-item">
               <div class="task-content">
                 <div class="task-title">{{ task.title }}</div>
-                <div v-if="task.description" class="task-desc" v-html="task.description"></div>
+                <div v-if="task.description" class="task-desc" v-html="sanitizeHtml(task.description)"></div>
               </div>
             </div>
           </div>
@@ -94,32 +105,55 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTasksStore } from '@/stores/tasks'
+// v2.18: AN0009 — Streak 接入 Dashboard
+import { useStreakStore } from '@/stores/streak'
 import { useToast } from '@/composables/useToast'
 import EmptyState from '@/components/common/EmptyState.vue'
-import api from '@/api'
+// B0302 Q3: 4 个 stat-card → BaseCard
+import BaseCard from '@/components/base/BaseCard.vue'
+// v2.18: AN0009 — StreakCard 视图组件
+import StreakCard from '@/components/streak/StreakCard.vue'
+// v6: B0328-fix — StreakMilestoneCard 视图组件（7/30/100 里程碑全貌）
+import StreakMilestoneCard from '@/components/streak/StreakMilestoneCard.vue'
+// v2.18: AN0011 — ProgressRing 视图组件
+import ProgressRing from '@/components/common/ProgressRing.vue'
+// B0292: XSS 防御 — sanitizeHtml 用于 v-html 前置过滤
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const tasksStore = useTasksStore()
+const streakStore = useStreakStore()
 const toast = useToast()
 const profile = ref(null)
 const todayTasks = ref([])
 const overdueTasks = ref([])
 const loading = ref(false)
+// v2.18: AN0011 — 任务完成率 (completed / total)
+const completionRate = computed(() => {
+  const total = profile.value?.stats?.total_tasks || 0
+  const completed = profile.value?.stats?.completed_tasks || 0
+  if (total <= 0) return 0
+  return Math.round((completed / total) * 100)
+})
 
 onMounted(async () => {
   await authStore.fetchUser()
   await loadData()
+  // v2.18: AN0009 — Streak 数据拉取（streak store 内置 5min cache）
+  await streakStore.fetchStreak()
 })
 
 async function loadData() {
   loading.value = true
   const [profileRes, todayRes, overdueRes] = await Promise.all([
-    api.get('/users/profile'),
-    api.get('/tasks/today'),
-    api.get('/tasks/overdue')
+    authStore.fetchUserProfile(),
+    tasksStore.fetchTodayTasks(),
+    tasksStore.fetchOverdueTasks()
   ])
   if (profileRes.success) profile.value = profileRes.data
   if (todayRes.success) todayTasks.value = todayRes.data.tasks || []
@@ -129,7 +163,7 @@ async function loadData() {
 
 async function completeTask(taskId) {
   try {
-    const res = await api.put(`/tasks/${taskId}/complete`)
+    const res = await tasksStore.completeTask(taskId)
     if (res.success) {
       toast.success('任务完成！')
       await loadData()
@@ -227,6 +261,14 @@ nav a:hover, nav a.router-link-active {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+/* v6: B0328-fix — 里程碑面板单列行 */
+.milestone-row {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-md);
   margin-bottom: var(--space-xl);
 }
@@ -349,7 +391,7 @@ nav a:hover, nav a.router-link-active {
 
 .skeleton-task {
   height: 60px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-mid) 50%, var(--skeleton-end) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 10px;
@@ -366,6 +408,10 @@ nav a:hover, nav a.router-link-active {
   }
   nav {
     display: none;
+  }
+  /* v6: B0328-fix — 移动端 streak-row 也变单列 */
+  .streak-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

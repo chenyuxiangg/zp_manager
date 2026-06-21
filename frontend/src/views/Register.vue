@@ -4,26 +4,27 @@
       <h1>注册</h1>
       <form @submit.prevent="handleRegister">
         <div class="form-group">
-          <label>用户名</label>
-          <input
+          <!-- B0302: 迁 BaseInput -->
+          <BaseInput
             v-model="formData.username"
             type="text"
+            label="用户名"
             placeholder="请输入用户名"
-            :class="{ error: getError('username') }"
+            :error="!!getError('username')"
+            :error-message="getError('username') || ''"
             @blur="setTouched('username')"
           />
-          <div v-if="getError('username')" class="field-error">{{ getError('username') }}</div>
         </div>
         <div class="form-group">
-          <label>邮箱</label>
-          <input
+          <BaseInput
             v-model="formData.email"
             type="email"
+            label="邮箱"
             placeholder="请输入邮箱"
-            :class="{ error: getError('email') }"
+            :error="!!getError('email')"
+            :error-message="getError('email') || ''"
             @blur="setTouched('email')"
           />
-          <div v-if="getError('email')" class="field-error">{{ getError('email') }}</div>
         </div>
         <div class="form-group">
           <label>密码</label>
@@ -50,6 +51,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useFormValidation, required, minLength, email } from '@/composables/useFormValidation'
 import PasswordInput from '@/components/common/PasswordInput.vue'
+// B0302: 统一表单基元
+import BaseInput from '@/components/base/BaseInput.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

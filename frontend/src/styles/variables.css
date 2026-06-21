@@ -58,11 +58,75 @@
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.3s ease;
+
+  /* PR0020 增补 — 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-loose: 1.75;
+
+  /* PR0020 增补 — 动画 */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* PR0020 增补 — z-index 层级 */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-popover: 1200;
+
+  /* PR0020 增补 — 打印专用 (B0126) */
+  --print-bg: white;
+  --print-fg: black;
+  --print-border: #cccccc;
+  --print-shadow: none;
+  --print-link: black;
+
+  /* B0278 — skeleton 加载占位三色 token */
+  --skeleton-base: #f0f0f0;
+  --skeleton-mid: #e0e0e0;
+  --skeleton-end: #f0f0f0;
 }
 
-/* 暗色主题支持（未来扩展） */
+/* PR0020 增补 — 打印模式覆盖 */
+@media print {
+  :root {
+    --color-background: var(--print-bg);
+    --color-text-primary: var(--print-fg);
+    --color-border-base: var(--print-border);
+    --shadow-sm: var(--print-shadow);
+    --shadow-md: var(--print-shadow);
+    --shadow-lg: var(--print-shadow);
+    --color-primary-500: var(--print-link);
+  }
+}
+
+/* 暗色主题支持 (B0251) — 通过 [data-theme="dark"] 属性选择器激活 */
+:root[data-theme="dark"] {
+  --color-background: #1d1d1f;
+  --color-surface: #2c2c2e;
+  --color-primary: #ffffff;
+  --text-primary: #ffffff;
+  --text-regular: #f5f5f7;
+  --text-secondary: #98989d;
+  --color-border: #38383a;
+  --color-border-light: #3a3a3c;
+  /* B0278 — skeleton 暗色变体 */
+  --skeleton-base: #2c2c2e;
+  --skeleton-mid: #3a3a3c;
+  --skeleton-end: #2c2c2e;
+}
+
+/* 系统偏好自动跟随 (当 theme='system' 时由 useTheme 应用) */
 @media (prefers-color-scheme: dark) {
-  :root.auto-theme {
+  :root[data-theme="system"] {
     --color-background: #1d1d1f;
     --color-surface: #2c2c2e;
     --color-primary: #ffffff;
@@ -70,5 +134,9 @@
     --text-regular: #f5f5f7;
     --text-secondary: #98989d;
     --color-border: #38383a;
+    /* B0278 — skeleton 暗色变体 */
+    --skeleton-base: #2c2c2e;
+    --skeleton-mid: #3a3a3c;
+    --skeleton-end: #2c2c2e;
   }
 }

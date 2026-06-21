@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from models import db, PlanTemplate, TemplateStage, TemplateTask, Plan, Stage, Task
 from utils import token_required, create_response
+from utils import error_codes as ec  # PR0017
 from datetime import date, timedelta
 
 templates_bp = Blueprint('templates', __name__, url_prefix='/api/plan-templates')
@@ -29,7 +30,7 @@ def get_template(template_id):
         (PlanTemplate.user_id == g.current_user.id) | (PlanTemplate.user_id == 0) | (PlanTemplate.user_id.is_(None))
     ).first()
     if not template:
-        return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'Template not found'})), 404
+        return ec.not_found(ec.RESOURCE_NOT_FOUND, message='Template not found')
 
     stages = TemplateStage.query.filter_by(template_id=template_id).order_by(TemplateStage.order_num).all()
     return jsonify(create_response(data={'template': {
@@ -64,7 +65,7 @@ def create_template():
     if plan_id:
         plan = Plan.query.filter_by(id=plan_id, user_id=g.current_user.id).first()
         if not plan:
-            return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'Plan not found'})), 404
+            return ec.not_found(ec.RESOURCE_NOT_FOUND, message='Plan not found')
 
         template = PlanTemplate(
             user_id=g.current_user.id,
@@ -105,7 +106,7 @@ def create_template():
         stages_data = data.get('stages', [])
 
         if not title:
-            return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Title is required'})), 422
+            return ec.bad_request(ec.INVALID_INPUT, message='Title is required')
 
         template = PlanTemplate(
             user_id=g.current_user.id,
@@ -146,7 +147,7 @@ def create_template():
 def delete_template(template_id):
     template = PlanTemplate.query.filter_by(id=template_id, user_id=g.current_user.id).first()
     if not template:
-        return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'Template not found'})), 404
+        return ec.not_found(ec.RESOURCE_NOT_FOUND, message='Template not found')
 
     db.session.delete(template)
     db.session.commit()
@@ -158,14 +159,14 @@ def delete_template(template_id):
 def import_plan_template():
     """从上传的JSON文件直接导入学习计划"""
     if 'file' not in request.files:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '请选择要上传的文件'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='请选择要上传的文件')
 
     file = request.files['file']
     if file.filename == '':
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '文件名不能为空'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='文件名不能为空')
 
     if not file.filename.endswith('.json'):
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '只支持JSON文件格式'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='只支持JSON文件格式')
 
     try:
         import json
@@ -176,10 +177,10 @@ def import_plan_template():
         stages_data = data.get('stages', [])
 
         if not title:
-            return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划标题不能为空'})), 422
+            return ec.bad_request(ec.INVALID_INPUT, message='计划标题不能为空')
 
         if not stages_data:
-            return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划中至少需要有一个阶段'})), 422
+            return ec.bad_request(ec.INVALID_INPUT, message='计划中至少需要有一个阶段')
 
         start_date = date.today()
         max_end_day = max((s.get('end_day', 6) for s in stages_data), default=6)
@@ -187,7 +188,7 @@ def import_plan_template():
 
         existing = Plan.query.filter_by(user_id=g.current_user.id, title=title).first()
         if existing:
-            return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划名称已存在'})), 422
+            return ec.conflict(ec.TITLE_DUPLICATED, message='计划名称已存在')
 
         plan = Plan(
             user_id=g.current_user.id,
@@ -233,10 +234,10 @@ def import_plan_template():
         return response
 
     except json.JSONDecodeError:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'JSON文件格式错误'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='JSON文件格式错误')
     except Exception as e:
         db.session.rollback()
-        return jsonify(create_response(success=False, error={'code': 'INTERNAL_ERROR', 'message': f'导入失败: {str(e)}'})), 500
+        return ec.server_error(ec.INTERNAL_ERROR, message=f'导入失败: {str(e)}')
 
 
 @templates_bp.route('/from-template', methods=['POST'])
@@ -248,24 +249,24 @@ def create_plan_from_template():
     start_date_str = data.get('start_date')
 
     if not template_id or not start_date_str:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'template_id and start_date are required'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='template_id and start_date are required')
 
     template = PlanTemplate.query.filter(
         PlanTemplate.id == template_id,
         (PlanTemplate.user_id == g.current_user.id) | (PlanTemplate.user_id == 0) | (PlanTemplate.user_id.is_(None))
     ).first()
     if not template:
-        return jsonify(create_response(success=False, error={'code': 'NOT_FOUND', 'message': 'Template not found'})), 404
+        return ec.not_found(ec.RESOURCE_NOT_FOUND, message='Template not found')
 
     start_date = date.fromisoformat(start_date_str)
     stages = TemplateStage.query.filter_by(template_id=template_id).order_by(TemplateStage.order_num).all()
 
     if not stages:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': 'Template has no stages'})), 422
+        return ec.bad_request(ec.INVALID_INPUT, message='Template has no stages')
 
     existing = Plan.query.filter_by(user_id=g.current_user.id, title=template.title).first()
     if existing:
-        return jsonify(create_response(success=False, error={'code': 'VALIDATION_ERROR', 'message': '计划名称已存在'})), 422
+        return ec.conflict(ec.TITLE_DUPLICATED, message='计划名称已存在')
 
     max_end_day = max(s.end_day for s in stages)
     end_date = start_date + timedelta(days=max_end_day)

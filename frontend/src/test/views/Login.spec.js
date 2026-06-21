@@ -16,6 +16,7 @@ vi.mock('@/stores/auth', () => ({
 const mockRouter = createRouterStub()
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
+  useRoute: () => ({ query: {} }), // PR0013: Login 监听 reason=expired
   RouterLink: { name: 'RouterLink', template: '<a><slot /></a>', props: ['to'] }
 }))
 
