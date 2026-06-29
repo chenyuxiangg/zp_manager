@@ -1,47 +1,44 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card glass">
-      <h1>注册</h1>
-      <form @submit.prevent="handleRegister">
-        <div class="form-group">
-          <!-- B0302: 迁 BaseInput -->
-          <BaseInput
-            v-model="formData.username"
-            type="text"
-            label="用户名"
-            placeholder="请输入用户名"
-            :error="!!getError('username')"
-            :error-message="getError('username') || ''"
-            @blur="setTouched('username')"
-          />
-        </div>
-        <div class="form-group">
-          <BaseInput
-            v-model="formData.email"
-            type="email"
-            label="邮箱"
-            placeholder="请输入邮箱"
-            :error="!!getError('email')"
-            :error-message="getError('email') || ''"
-            @blur="setTouched('email')"
-          />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <PasswordInput
-            v-model="formData.password"
-            placeholder="请输入密码（至少6位）"
-            :error="getError('password')"
-            @blur="setTouched('password')"
-          />
-        </div>
-        <button type="submit" :disabled="loading">{{ loading ? '注册中...' : '注册' }}</button>
-        <p class="switch-link">
-          已有账号？<router-link to="/login">立即登录</router-link>
-        </p>
-      </form>
+  <!-- AuthLayout 提供 shell + 卡片背景；此处只放视图内容 -->
+  <h1>注册</h1>
+  <form @submit.prevent="handleRegister">
+    <div class="form-group">
+      <!-- B0302: 迁 BaseInput -->
+      <BaseInput
+        v-model="formData.username"
+        type="text"
+        label="用户名"
+        placeholder="请输入用户名"
+        :error="!!getError('username')"
+        :error-message="getError('username') || ''"
+        @blur="setTouched('username')"
+      />
     </div>
-  </div>
+    <div class="form-group">
+      <BaseInput
+        v-model="formData.email"
+        type="email"
+        label="邮箱"
+        placeholder="请输入邮箱"
+        :error="!!getError('email')"
+        :error-message="getError('email') || ''"
+        @blur="setTouched('email')"
+      />
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <PasswordInput
+        v-model="formData.password"
+        placeholder="请输入密码（至少6位）"
+        :error="getError('password')"
+        @blur="setTouched('password')"
+      />
+    </div>
+    <button type="submit" :disabled="loading">{{ loading ? '注册中...' : '注册' }}</button>
+    <p class="switch-link">
+      已有账号？<router-link to="/login">立即登录</router-link>
+    </p>
+  </form>
 </template>
 
 <script setup>
@@ -94,28 +91,14 @@ async function handleRegister() {
 </script>
 
 <style scoped>
-.auth-page {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  padding: var(--space-xl);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
+/* AuthLayout 负责外层 shell + 卡片背景，本 view 只管内容样式 */
 
 h1 {
   font-size: 28px;
   font-weight: 600;
   margin-bottom: var(--space-lg);
   text-align: center;
+  color: var(--text-primary);
 }
 
 .form-group {
@@ -144,7 +127,7 @@ h1 {
 
 .form-group input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  box-shadow: 0 0 0 3px var(--color-accent-alpha);
 }
 
 .form-group input.error {

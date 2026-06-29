@@ -1,41 +1,38 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card glass">
-      <!-- PR0013: 会话过期 banner -->
-      <div v-if="expired" class="expired-banner" role="alert">会话已过期，请重新登录</div>
-      <h1>登录</h1>
-      <form @submit.prevent="handleLogin">
-        <div class="form-group">
-          <!-- B0302: 迁 BaseInput -->
-          <BaseInput
-            v-model="formData.email"
-            type="email"
-            label="邮箱"
-            placeholder="请输入邮箱"
-            :error="!!getError('email')"
-            :error-message="getError('email') || ''"
-            @blur="setTouched('email')"
-          />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <PasswordInput
-            v-model="formData.password"
-            placeholder="请输入密码"
-            :error="getError('password')"
-            @blur="setTouched('password')"
-          />
-        </div>
-        <button type="submit" :disabled="loading">{{ loading ? '登录中...' : '登录' }}</button>
-        <p class="switch-link">
-          还没有账号？<router-link to="/register">立即注册</router-link>
-        </p>
-        <p class="forgot-link">
-          <router-link to="/forgot-password">忘记密码？</router-link>
-        </p>
-      </form>
+  <!-- AuthLayout 提供 shell + 卡片背景；此处只放视图内容 -->
+  <!-- PR0013: 会话过期 banner -->
+  <div v-if="expired" class="expired-banner" role="alert">⚠️ 会话已过期，请重新登录</div>
+  <h1>登录</h1>
+  <form @submit.prevent="handleLogin">
+    <div class="form-group">
+      <!-- B0302: 迁 BaseInput -->
+      <BaseInput
+        v-model="formData.email"
+        type="email"
+        label="邮箱"
+        placeholder="请输入邮箱"
+        :error="!!getError('email')"
+        :error-message="getError('email') || ''"
+        @blur="setTouched('email')"
+      />
     </div>
-  </div>
+    <div class="form-group">
+      <label>密码</label>
+      <PasswordInput
+        v-model="formData.password"
+        placeholder="请输入密码"
+        :error="getError('password')"
+        @blur="setTouched('password')"
+      />
+    </div>
+    <button type="submit" :disabled="loading">{{ loading ? '登录中...' : '登录' }}</button>
+    <p class="switch-link">
+      还没有账号？<router-link to="/register">立即注册</router-link>
+    </p>
+    <p class="forgot-link">
+      <router-link to="/forgot-password">忘记密码？</router-link>
+    </p>
+  </form>
 </template>
 
 <script setup>
@@ -108,28 +105,14 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-.auth-page {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  padding: var(--space-xl);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
+/* AuthLayout 负责外层 shell + 卡片背景，本 view 只管内容样式 */
 
 h1 {
   font-size: 28px;
   font-weight: 600;
   margin-bottom: var(--space-lg);
   text-align: center;
+  color: var(--text-primary);
 }
 
 .form-group {
@@ -159,7 +142,7 @@ h1 {
 
 .form-group input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  box-shadow: 0 0 0 3px var(--color-accent-alpha);
 }
 
 .form-group input.error {
@@ -223,5 +206,27 @@ button:disabled {
 
 .forgot-link a:hover {
   color: var(--color-accent);
+}
+
+/* B0340 — .expired-banner 视觉规范（PR0013 实施时漏配，方案稿 rr2_pr_b0340_analy.md §4）
+   决策点：D1=A 警示橙底 / D2=A emoji ⚠️ / D3=A 不可关闭 / D4=A 保留 role="alert" */
+.expired-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: var(--space-md);
+  background: rgba(255, 149, 0, 0.12);
+  border-left: 3px solid var(--color-warning, #ff9500);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  animation: banner-in 0.3s ease;
+}
+
+@keyframes banner-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 </style>

@@ -124,11 +124,14 @@ const toast = useToast()
 const router = useRouter()
 const authStore = useAuthStore()
 const saving = ref(false)
-const notifyConfig = ref({
+
+// B0331: 抽 4 段默认值（含 pomodoro/streak）— 后端可能返回部分 notify_config
+// （例：mock 端仅 {onboarded:false, current_step:null}，或老用户创建于这些段加入前）。
+// onMounted 用 deepMerge 合并，确保缺失段回退到默认值，避免模板读 .break_enabled 崩溃。
+const DEFAULT_NOTIFY_CONFIG = {
   learn_reminder: { enabled: true, timing: '1 day', channels: ['email'] },
   verify_reminder: { enabled: true, timing: 'on due', channels: ['email'] },
   email: '',
-  // B0253: 4 段新增字段默认值（与 PR0022 §3 DEFAULTS 对齐）
   onboarded: false,
   pomodoro: {
     break_enabled: true,
@@ -139,15 +142,39 @@ const notifyConfig = ref({
     next_milestone: 7,
     flame_visible: true,
   },
-})
+}
+
+// 深合并：对 plain-object 段，用 defaults 兜底缺字段；其他值（boolean/string/number）以 user 为准
+function deepMergeNotifyConfig(defaults, user) {
+  if (!user || typeof user !== 'object' || Array.isArray(user)) return { ...defaults }
+  const out = { ...defaults }
+  for (const key of Object.keys(user)) {
+    const u = user[key]
+    const d = defaults[key]
+    if (
+      d && typeof d === 'object' && !Array.isArray(d) &&
+      u && typeof u === 'object' && !Array.isArray(u)
+    ) {
+      out[key] = { ...d, ...u }
+    } else {
+      out[key] = u
+    }
+  }
+  return out
+}
+
+const notifyConfig = ref(deepMergeNotifyConfig(DEFAULT_NOTIFY_CONFIG, null))
 const pointsHistory = ref([])
 const currentPage = ref(1)
 const hasMore = ref(false)
 
 onMounted(async () => {
-  if (authStore.user?.notify_config) {
-    notifyConfig.value = { ...authStore.user.notify_config }
-  }
+  // B0331: 深合并兜底 — 后端 notify_config 缺段（pomodoro/streak/learn_reminder）时
+  // 保留 DEFAULT_NOTIFY_CONFIG 缺字段，避免模板访问 undefined.x 崩溃
+  notifyConfig.value = deepMergeNotifyConfig(
+    DEFAULT_NOTIFY_CONFIG,
+    authStore.user?.notify_config,
+  )
   await loadPointsHistory()
 })
 
@@ -212,7 +239,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .user-info button { padding: 6px 12px; border: 1px solid var(--color-border); background: transparent; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .main-content { max-width: 800px; margin: 0 auto; padding: var(--space-xl) var(--space-lg); }
 .settings-page h1 { font-size: 24px; font-weight: 600; margin-bottom: var(--space-lg); }
-.settings-section { padding: var(--space-lg); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.5); margin-bottom: var(--space-lg); }
+.settings-section { padding: var(--space-lg); border-radius: 12px; border: 1px solid var(--color-card-border); margin-bottom: var(--space-lg); }
 .settings-section h2 { font-size: 16px; font-weight: 600; margin-bottom: var(--space-md); }
 .info-row { display: flex; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-border); }
 .info-row:last-of-type { border-bottom: none; }

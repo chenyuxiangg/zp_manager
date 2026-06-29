@@ -27,6 +27,15 @@ vi.mock('@/api/interceptor', () => ({
 }))
 
 const pushMock = vi.fn()
+// PR0013 修复后 api/index.js 改为 `import router from '@/router'`（模块级拿现成实例），
+// 需 mock '@/router' 避免触发真实路由模块的 createRouter()
+vi.mock('@/router', () => ({
+  default: {
+    currentRoute: { value: { path: '/dashboard' } },
+    push: pushMock,
+  },
+}))
+// 兼容旧 try/catch 路径：handleApiError 注入里仍走 useRouter() 拿实例
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     currentRoute: { value: { path: '/dashboard' } },

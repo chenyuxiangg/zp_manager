@@ -1,34 +1,28 @@
-// PR0012 — 新用户引导 useOnboardingGuide 复活
-// 目标: 锁定 5 个行为契约
-//   1) shouldShow 综合判定 (localStorage + onboarded + created_at + 5min 窗口)
-//   2) startTour 调 driver.js
-//   3) completeTour 写 localStorage + PUT notify-config
-//   4) skipTour 写 localStorage + 不调 API (用户跳过)
-//   5) 5 步定义完整且 element 锚点对齐方案
+// PR0025 — useOnboardingGuide 委托契约 + shouldShow
+// 守护:
+//   - 5 个 shouldShow 用例（接口签名兼容，不动）
+//   - startTour → onboarding store.startTour() 被调
+//   - completeTour → localStorage + setOnboarded + clearCurrentStep 全调（D3 清步）
+//   - skipTour → localStorage + setOnboarded + clearCurrentStep 全调（D3 清步；与旧契约"不调 API"不同，本 PR 顺手对齐 B0324）
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
 
-// mock driver.js — driver.js@1.4.0 命名导出 { driver }，无 default
-// 之前 v2.17 漏报：测试用 default mock 掩盖了真实库的命名导入，build 时 Rollup 报错
-// 现锁定真契约：import { driver as Driver } from 'driver.js'
-const driverStartMock = vi.fn()
-const driverDestroyMock = vi.fn()
-const driverMoveNextMock = vi.fn()
-const driverMovePrevMock = vi.fn()
-const driverDefineStepsMock = vi.fn()
-const driverInstance = {
-  start: driverStartMock,
-  destroy: driverDestroyMock,
-  moveNext: driverMoveNextMock,
-  movePrevious: driverMovePrevMock,
-  defineSteps: driverDefineStepsMock,
-  isActivated: false,
-}
-const DriverMock = vi.fn(() => driverInstance)
-vi.mock('driver.js', () => ({ driver: DriverMock }))
+// mock onboarding store（D2 决策：composable 只做 thin wrapper）
+const storeStartTourMock = vi.fn()
+const storeDestroyMock = vi.fn()
+const storeClearCurrentStepMock = vi.fn()
+const storeComputeResumeFromMock = vi.fn(() => 0)
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => ({
+    startTour: storeStartTourMock,
+    destroy: storeDestroyMock,
+    clearCurrentStep: storeClearCurrentStepMock,
+    computeResumeFrom: storeComputeResumeFromMock,
+  }),
+}))
 
-// mock authStore — B0303 后 onboarded 走 authStore.setOnboarded (不再 raw api)
+// mock authStore
 const setOnboardedMock = vi.fn()
 const authState = { user: null }
 vi.mock('@/stores/auth', () => ({
@@ -40,25 +34,27 @@ vi.mock('@/stores/auth', () => ({
 
 const ONBOARDED_KEY = 'zpersion.onboarded'
 
-describe('PR0012 — useOnboardingGuide 5 步契约', () => {
+describe('PR0025 — useOnboardingGuide 委托契约', () => {
   beforeEach(() => {
-    DriverMock.mockClear()
-    driverStartMock.mockReset()
-    driverDestroyMock.mockReset()
-    driverMoveNextMock.mockReset()
-    driverDefineStepsMock.mockReset()
-    setOnboardedMock.mockReset()
+    storeStartTourMock.mockReset()
+    storeDestroyMock.mockReset()
+    storeClearCurrentStepMock.mockReset().mockResolvedValue(undefined)
+    storeComputeResumeFromMock.mockReset().mockReturnValue(0)
+    setOnboardedMock.mockReset().mockResolvedValue({ success: true })
     authState.user = null
     localStorage.removeItem(ONBOARDED_KEY)
+    setActivePinia(createPinia())
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'))
+    vi.setSystemTime(new Date('2026-06-22T12:00:00Z'))
   })
   afterEach(() => { vi.useRealTimers() })
+
+  // ============ shouldShow 5 用例（接口兼容）============
 
   it('【shouldShow】localStorage 空 + 新用户 → true', async () => {
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     authState.user = {
-      created_at: '2026-06-15T11:58:00Z',  // 2 分钟前
+      created_at: '2026-06-22T11:58:00Z',
       notify_config: { onboarded: false },
     }
     const g = useOnboardingGuide()
@@ -69,7 +65,7 @@ describe('PR0012 — useOnboardingGuide 5 步契约', () => {
     localStorage.setItem(ONBOARDED_KEY, 'true')
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     authState.user = {
-      created_at: '2026-06-15T11:58:00Z',
+      created_at: '2026-06-22T11:58:00Z',
       notify_config: { onboarded: false },
     }
     const g = useOnboardingGuide()
@@ -79,7 +75,7 @@ describe('PR0012 — useOnboardingGuide 5 步契约', () => {
   it('【shouldShow】server notify_config.onboarded=true → false', async () => {
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     authState.user = {
-      created_at: '2026-06-15T11:58:00Z',
+      created_at: '2026-06-22T11:58:00Z',
       notify_config: { onboarded: true },
     }
     const g = useOnboardingGuide()
@@ -89,55 +85,70 @@ describe('PR0012 — useOnboardingGuide 5 步契约', () => {
   it('【shouldShow】用户创建超 5 分钟 → false', async () => {
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     authState.user = {
-      created_at: '2026-06-15T11:00:00Z',  // 60 分钟前
+      created_at: '2026-06-22T11:00:00Z',
       notify_config: { onboarded: false },
     }
     const g = useOnboardingGuide()
     expect(g.shouldShow()).toBe(false)
   })
 
-  it('【startTour】构造 Driver + defineSteps(5) + start()', async () => {
+  it('【shouldShow】user 缺失 → false（fetchUser 还没回）', async () => {
+    const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
+    authState.user = null
+    const g = useOnboardingGuide()
+    expect(g.shouldShow()).toBe(false)
+  })
+
+  // ============ 委托契约 ============
+
+  it('【startTour】委托给 store.startTour({ resumeFrom: computeResumeFrom() })', async () => {
+    storeComputeResumeFromMock.mockReturnValue(3)
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     const g = useOnboardingGuide()
     g.startTour()
-    expect(DriverMock).toHaveBeenCalledTimes(1)
-    expect(driverDefineStepsMock).toHaveBeenCalledTimes(1)
-    const steps = driverDefineStepsMock.mock.calls[0][0]
-    expect(steps.length).toBe(5)
-    expect(driverStartMock).toHaveBeenCalledTimes(1)
+    expect(storeComputeResumeFromMock).toHaveBeenCalled()
+    expect(storeStartTourMock).toHaveBeenCalledWith({ resumeFrom: 3 })
   })
 
-  it('【completeTour】写 localStorage + 调 authStore.setOnboarded(true) (B0303+ B0304)', async () => {
+  it('【completeTour】localStorage + setOnboarded(true) + clearCurrentStep + store.destroy', async () => {
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     const g = useOnboardingGuide()
-    setOnboardedMock.mockResolvedValue({ success: true })
     await g.completeTour()
     expect(localStorage.getItem(ONBOARDED_KEY)).toBe('true')
     expect(setOnboardedMock).toHaveBeenCalledWith(true)
+    expect(storeClearCurrentStepMock).toHaveBeenCalled()
+    expect(storeDestroyMock).toHaveBeenCalled()
   })
 
-  it('【skipTour】写 localStorage + 不调 store action', async () => {
+  it('【skipTour】localStorage + setOnboarded(true) + clearCurrentStep + store.destroy（D3 + B0324）', async () => {
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     const g = useOnboardingGuide()
     g.skipTour()
+    // micro-task drain（setOnboarded + clearCurrentStep 都是 fire-and-forget Promise）
+    // fakeTimers 下不能用 setTimeout(r, 0)，改用 vi.advanceTimersByTimeAsync
+    await vi.advanceTimersByTimeAsync(10)
     expect(localStorage.getItem(ONBOARDED_KEY)).toBe('true')
-    expect(setOnboardedMock).not.toHaveBeenCalled()
+    expect(setOnboardedMock).toHaveBeenCalledWith(true)
+    expect(storeClearCurrentStepMock).toHaveBeenCalled()
+    expect(storeDestroyMock).toHaveBeenCalled()
   })
 
-  it('【5 步锚点】步骤 element 引用方案约定的 5 个 data-guide 锚点', async () => {
+  it('【restartTour】清 localStorage + 重新 startTour', async () => {
+    localStorage.setItem(ONBOARDED_KEY, 'true')
+    storeComputeResumeFromMock.mockReturnValue(0)
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     const g = useOnboardingGuide()
-    g.startTour()
-    const steps = driverDefineStepsMock.mock.calls[0][0]
-    const expected = [
-      'data-guide="welcome"',                  // step 1: 欢迎
-      'data-guide="nav-plans"',                // step 2: 创建计划
-      'data-guide="plan-detail"',              // step 3: 拆分阶段/任务
-      'data-guide="task-toggle"',              // step 4: 完成任务
-      'data-guide="nav-reports"',              // step 5: 看报表
-    ]
-    for (let i = 0; i < expected.length; i++) {
-      expect(steps[i].element).toContain(expected[i].split('=')[1].replace(/"/g, ''))
-    }
+    g.restartTour()
+    // restartTour 内 setTimeout(() => startTour(), 0)，advance timers 触发
+    await vi.advanceTimersByTimeAsync(10)
+    expect(localStorage.getItem(ONBOARDED_KEY)).toBeNull()
+    expect(storeStartTourMock).toHaveBeenCalled()
+  })
+
+  it('【destroy】直接委托 store.destroy', async () => {
+    const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
+    const g = useOnboardingGuide()
+    g.destroy()
+    expect(storeDestroyMock).toHaveBeenCalled()
   })
 })

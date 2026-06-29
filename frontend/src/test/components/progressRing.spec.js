@@ -73,4 +73,14 @@ describe('PR0011 — ProgressRing 死代码复活', () => {
     const circle = w.find('.progress-circle')
     expect(parseFloat(circle.attributes('stroke-dashoffset'))).toBeCloseTo(circumference * 0.8, 1)
   })
+
+  // B0336: SVG transform 必须用数值 center，"center" 关键字浏览器 SVG 解析抛 Trailing garbage
+  it('【transform 数值化】size=120 → transform 用 rotate(-90 60 60) 而非字面 "center"', async () => {
+    const { default: ProgressRing } = await import('@/components/common/ProgressRing.vue')
+    const w = mount(ProgressRing, { props: { value: 50, size: 120 } })
+    const circle = w.find('.progress-circle')
+    const transform = circle.attributes('transform')
+    expect(transform).toMatch(/rotate\(-90\s+60(\.0+)?\s+60(\.0+)?\)/)
+    expect(transform).not.toMatch(/center/)
+  })
 })

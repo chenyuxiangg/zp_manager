@@ -27,7 +27,7 @@
       stroke-linecap="round"
       :stroke-dasharray="circumference"
       :stroke-dashoffset="dashOffset"
-      transform="rotate(-90, center, center)"
+      :transform="`rotate(-90 ${center} ${center})`"
       class="progress-circle"
     />
     <!-- 中心文字 -->

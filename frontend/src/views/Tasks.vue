@@ -147,7 +147,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
   overflow: hidden;
   padding: var(--space-md);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
   display: flex;
   align-items: center;
   justify-content: space-between;

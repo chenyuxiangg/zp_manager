@@ -173,7 +173,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .tabs { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
 .tabs button { padding: 8px 16px; border: 1px solid var(--color-border); background: white; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .tabs button.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
-.report-content { padding: var(--space-lg); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.5); }
+.report-content { padding: var(--space-lg); border-radius: 12px; border: 1px solid var(--color-card-border); }
 .report-header { display: flex; justify-content: space-between; font-size: 14px; color: var(--color-secondary); margin-bottom: var(--space-lg); }
 .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-md); }
 .stat { text-align: center; }
@@ -187,7 +187,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .report-type-tabs button, .history-type-tabs button { padding: 6px 12px; border: 1px solid var(--color-border); background: white; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .report-type-tabs button.active, .history-type-tabs button.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
 .history-list { display: flex; flex-direction: column; gap: var(--space-sm); }
-.history-item { padding: var(--space-md); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.5); display: flex; justify-content: space-between; align-items: center; }
+.history-item { padding: var(--space-md); border-radius: 10px; border: 1px solid var(--color-card-border); display: flex; justify-content: space-between; align-items: center; }
 .history-info { display: flex; flex-direction: column; gap: 4px; }
 .history-period { font-size: 14px; font-weight: 500; }
 .history-type { font-size: 12px; color: var(--color-accent); }

@@ -25,7 +25,7 @@ describe('B0325 — Pomodoro end body auto_toggle / early_end（源码守护）'
   })
 
   it('【stopPomodoro body 保留 duration 兼容】', () => {
-    expect(TASK_DETAIL_VUE).toMatch(/duration:\s*pomodoroMinutes\s*\*\s*60/)
+    expect(TASK_DETAIL_VUE).toMatch(/duration:\s*pomodoroMinutes\.value\s*\*\s*60/)
   })
 
   it('【pomodoroAutoToggle ref 默认 false】PR0021 纯计时契约', () => {

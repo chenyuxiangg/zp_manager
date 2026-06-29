@@ -3,6 +3,7 @@
   <router-view v-slot="{ Component, route }">
     <component
       :is="layouts[route.meta.layout || 'app']"
+      v-bind="route.meta.layout === 'auth' ? { variant: route.meta.layoutVariant } : {}"
       v-if="Component"
     >
       <component :is="Component" />
@@ -12,13 +13,11 @@
   <!-- PR0010: 反馈三件套 (挂在 body 内、跨 view 可见) -->
   <CelebrationEffect :trigger="feedback.event" />
   <PointsFloat :trigger="feedback.event" />
-  <!-- PR0012: 5 步新用户引导 -->
-  <NewUserGuide />
   <Toast />
 </template>
 
 <script setup>
-import { onMounted, provide } from 'vue'
+import { onMounted, onUnmounted, provide } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 
@@ -62,7 +61,6 @@ import { useOnboardingGuide } from '@/composables/useOnboardingGuide'
 import Toast from '@/components/common/Toast.vue'
 import CelebrationEffect from '@/components/common/CelebrationEffect.vue'
 import PointsFloat from '@/components/common/PointsFloat.vue'
-import NewUserGuide from '@/components/common/NewUserGuide.vue'
 
 // PR0012: 引导在 onMounted 异步启动（等 auth 加载完）
 onMounted(async () => {
@@ -74,6 +72,18 @@ onMounted(async () => {
     setTimeout(() => guide.startTour(), 1500)
   }
 })
+
+// PR0025 / B0033 D1-C: visibilitychange 兜底同步 current_step
+// （防 onHighlighted 还没 fire / 用户关 tab / 切窗口时丢最新步）
+import { useOnboardingStore } from '@/stores/onboarding'
+const onboarding = useOnboardingStore()
+function syncOnVisibilityHidden() {
+  if (document.visibilityState === 'hidden' && onboarding.active) {
+    onboarding.persistCurrentStep(onboarding.activeIndex).catch(() => { /* 静默 */ })
+  }
+}
+document.addEventListener('visibilitychange', syncOnVisibilityHidden)
+onUnmounted(() => document.removeEventListener('visibilitychange', syncOnVisibilityHidden))
 
 // v2.18.1: 抽 useOnboardingWatcher 合并两个 watch（登出清 onboarded + restartOnboarding 启动 tour）
 import { useOnboardingWatcher } from '@/composables/useOnboardingWatcher'

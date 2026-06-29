@@ -146,7 +146,7 @@ const loading = ref(false)
 const pomodoroRunning = ref(false)
 const pomodoroStarting = ref(false)
 const pomodoroSessions = ref([])
-const pomodoroMinutes = 25  // 默认 25min
+const pomodoroMinutes = ref(25)  // 默认 25min（B0334 修复：与同段 ref 保持一致）
 // B0325: 改 ref 让 UI 切换；PR0021 纯计时默认 false
 const pomodoroAutoToggle = ref(false)
 // B0312: 保存当前活跃 pomodoro session_id（end URL 必传）
@@ -158,15 +158,15 @@ async function startPomodoro() {
     // B0313: 发 planned_minutes（分钟），与后端 PomodoroSession.planned_minutes 字段对齐
     const res = await api.post(
       `/tasks/${taskId}/pomodoro/start`,
-      { planned_minutes: pomodoroMinutes }
+      { planned_minutes: pomodoroMinutes.value }
     )
     if (res.success) {
       pomodoroRunning.value = true
       // B0312: 捕获并保存 session_id，供 stopPomodoro URL 拼接
       currentPomodoroSessionId.value = res?.data?.session_id || null
       // B0313: 兜底同步后端权威 planned_minutes（校验后值）
-      if (res?.data?.planned_minutes && res.data.planned_minutes !== pomodoroMinutes) {
-        pomodoroMinutes = res.data.planned_minutes
+      if (res?.data?.planned_minutes && res.data.planned_minutes !== pomodoroMinutes.value) {
+        pomodoroMinutes.value = res.data.planned_minutes
       }
       handleSuccess('专注已开始')
     }
@@ -189,7 +189,7 @@ async function stopPomodoro(earlyEnd = false) {
       {
         early_end: earlyEnd,
         auto_toggle: pomodoroAutoToggle.value,
-        duration: pomodoroMinutes * 60,
+        duration: pomodoroMinutes.value * 60,
       }
     )
     if (res.success) {

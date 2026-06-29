@@ -672,7 +672,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .btn-danger { padding: 8px 16px; background: var(--color-error); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
 
 .stages-list { display: flex; flex-direction: column; gap: var(--space-lg); }
-.stage-card { padding: var(--space-lg); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.5); }
+.stage-card { padding: var(--space-lg); border-radius: 12px; border: 1px solid var(--color-card-border); }
 .stage-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-sm); }
 .stage-info { display: flex; flex-direction: column; gap: 4px; }
 .stage-order { font-size: 12px; color: var(--color-accent); font-weight: 600; }
@@ -737,8 +737,8 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .status-in_progress { color: var(--color-warning); }
 .status-overdue { color: var(--color-error); }
 
-.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-content { width: 100%; max-width: 500px; padding: var(--space-xl); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); background: var(--color-background); }
+.modal { position: fixed; inset: 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-content { width: 100%; max-width: 500px; padding: var(--space-xl); border-radius: 16px; border: 1px solid var(--color-card-border); background: var(--color-background); }
 .modal-content h2 { font-size: 20px; font-weight: 600; margin-bottom: var(--space-lg); }
 .form-group { margin-bottom: var(--space-md); }
 .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: var(--space-xs); color: var(--color-secondary); }

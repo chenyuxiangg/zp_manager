@@ -33,3 +33,69 @@ const navItems = computed(() =>
   NAV_ITEMS.filter(i => !i.requiresAdmin || auth.user?.is_admin)
 )
 </script>
+
+<!--
+  设计稿来源：e046a64 (RR1 zp_manager 初版) views/Dashboard.vue:157-193
+  - 56px 高 / sticky top / 玻璃底（var(--color-surface-glass) + blur(20px)）
+  - 内容容器 max-width 1200px, padding 0 var(--space-lg)
+  - Logo 20px/700；nav 链接 14px 次要色，hover/active 切主色
+  - 移动端 (<768px) 隐藏 nav（由 AppLayout 的汉堡按钮接管）
+  - z-index 用 var(--z-sticky)，避免与抽屉 / 模态冲突
+-->
+<style scoped>
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.app-header__logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.app-header__nav {
+  display: flex;
+  gap: var(--space-md);
+  flex: 1;
+}
+
+.app-header__nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color var(--transition-fast);
+}
+
+.app-header__nav a:hover,
+.app-header__nav a.router-link-active {
+  color: var(--text-primary);
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .app-header__nav {
+    display: none;
+  }
+}
+</style>

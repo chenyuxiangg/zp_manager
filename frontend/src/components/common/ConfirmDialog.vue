@@ -62,7 +62,7 @@ function handleCancel() {
 .confirm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -75,7 +75,7 @@ function handleCancel() {
   max-width: 400px;
   padding: var(--space-xl);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
   background: var(--color-background, white);
   animation: scale-in 0.2s ease;
 }

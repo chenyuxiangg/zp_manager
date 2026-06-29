@@ -59,8 +59,17 @@ def get_points_history():
     total = query.count()
     logs = query.offset((page - 1) * limit).limit(limit).all()
 
+    # B0331: PointLog.created_at nullable=True；老数据 / 跨环境导入可能为 NULL。
+    # 原代码 l.created_at.isoformat() 在 None 时会抛 AttributeError → 500。
+    # 用 None 兜底，保证 API 永不因时间戳缺失而崩溃。
     return jsonify(create_response(data={
-        'logs': [{'id': l.id, 'task_id': l.task_id, 'delta': l.delta, 'reason': l.reason, 'created_at': l.created_at.isoformat()} for l in logs],
+        'logs': [{
+            'id': l.id,
+            'task_id': l.task_id,
+            'delta': l.delta,
+            'reason': l.reason,
+            'created_at': l.created_at.isoformat() if l.created_at else None,
+        } for l in logs],
         'total': total
     }))
 

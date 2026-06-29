@@ -276,13 +276,13 @@ nav a:hover, nav a.router-link-active {
 .stat-card {
   padding: var(--space-lg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
   transition: all 0.3s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px var(--shadow-color-soft);
 }
 
 .stat-label {
@@ -319,7 +319,7 @@ nav a:hover, nav a.router-link-active {
 .task-item {
   padding: var(--space-md);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -328,7 +328,7 @@ nav a:hover, nav a.router-link-active {
 }
 
 .task-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px var(--shadow-color-soft);
 }
 
 .task-content {

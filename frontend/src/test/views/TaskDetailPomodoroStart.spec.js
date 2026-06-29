@@ -24,7 +24,7 @@ const MOCK_POMODORO = readFileSync(
 describe('B0313 — TaskDetail.vue pomodoro start planned_minutes（源码守护）', () => {
   it('【startPomodoro 发 planned_minutes】源码含 `planned_minutes: pomodoroMinutes`', () => {
     // 守护：startPomodoro 必须发 planned_minutes 字段（与后端 PomodoroSession.planned_minutes 对齐）
-    expect(TASK_DETAIL_VUE).toMatch(/planned_minutes:\s*pomodoroMinutes/)
+    expect(TASK_DETAIL_VUE).toMatch(/planned_minutes:\s*pomodoroMinutes\.value/)
   })
 
   it('【startPomodoro 不发 duration】源码不应在 start 请求体里发 duration', () => {
@@ -36,7 +36,7 @@ describe('B0313 — TaskDetail.vue pomodoro start planned_minutes（源码守护
 
   it('【startPomodoro 兜底同步后端】响应 planned_minutes 与本地不同时更新本地', () => {
     // 守护：响应兜底逻辑必须存在
-    expect(TASK_DETAIL_VUE).toMatch(/pomodoroMinutes\s*=\s*res\.data\.planned_minutes/)
+    expect(TASK_DETAIL_VUE).toMatch(/pomodoroMinutes\.value\s*=\s*res\.data\.planned_minutes/)
   })
 })
 

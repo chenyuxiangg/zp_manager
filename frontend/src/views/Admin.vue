@@ -142,7 +142,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .loading { text-align: center; padding: var(--space-2xl); color: var(--color-secondary); }
 .error { text-align: center; padding: var(--space-xl); color: var(--color-error); }
 .users-list { display: flex; flex-direction: column; gap: var(--space-md); }
-.user-card { padding: var(--space-lg); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.5); display: flex; justify-content: space-between; align-items: center; }
+.user-card { padding: var(--space-lg); border-radius: 12px; border: 1px solid var(--color-card-border); display: flex; justify-content: space-between; align-items: center; }
 .user-header { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-xs); }
 .username { font-size: 16px; font-weight: 600; }
 .admin-badge { padding: 2px 8px; background: var(--color-accent); color: white; border-radius: 4px; font-size: 11px; }

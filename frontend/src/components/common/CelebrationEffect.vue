@@ -5,6 +5,23 @@
   </Teleport>
 </template>
 
+<script>
+// B0331-fix: 模块级 helper — 从 CSS 变量读 confetti 调色板（避免 style-audit 硬编码颜色，跟随主题切换）
+// 必须放在 <script setup> 之外的 module scope，因为 defineProps 默认值工厂会被 hoist，
+// 引用 <script setup> 内局部声明的函数会编译失败。
+function readCssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+function defaultColors() {
+  return [
+    readCssVar('--color-accent'),
+    readCssVar('--color-success'),
+    readCssVar('--color-warning'),
+    readCssVar('--color-error'),
+  ]
+}
+</script>
+
 <script setup>
 // B0273: trigger 改为 Object (useFeedback 事件) — 旧 Boolean API 已废弃
 import { ref, watch, onBeforeUnmount } from 'vue'
@@ -21,7 +38,7 @@ const props = defineProps({
       particleCount: 80,
       spread: 70,
       origin: { y: 0.6 },
-      colors: ['#0071e3', '#34c759', '#ff9500', '#ff3b30'],
+      colors: defaultColors(),
     }),
   },
 })
@@ -41,7 +58,7 @@ function celebrate() {
     particleCount: 80,
     spread: 70,
     origin: { y: 0.6 },
-    colors: ['#0071e3', '#34c759', '#ff9500', '#ff3b30'],
+    colors: defaultColors(),
   }
   confetti({ ...defaults, ...props.options, drift: 0, gravity: 1, scalar: 1, shapes: ['circle', 'square'] })
   timers.push(setTimeout(() => {

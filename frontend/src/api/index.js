@@ -2,6 +2,9 @@ import axios from 'axios'
 import { useToast } from '@/composables/useToast'
 import { handleMock } from '@/mocks'
 import { handleApiError } from './interceptor'
+// PR0013 修复：模块级拿 router 实例，避免 require('vue-router') + useRouter() 在
+// 模块级上下文抛错时 fall back 到 window.location.href = '/login' 触发整页硬刷新死循环
+import router from '@/router'
 
 // 是否走 mock 模式（开发期脱离后端联调）
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
@@ -51,19 +54,12 @@ api.interceptors.response.use(
     // B0311：401 软跳保留在 index.js（需要本地 router 实例）+ PR0013 守卫
     // 其余 4xx/5xx/network 一律交给 handleApiError 统一处理（按 code 精确分支）
     if (error.response?.status === 401 && !skipErrorToast) {
-      // B0287: 软跳用 router.push（不再用 location.href 硬刷，避免 in-memory state 丢失）
-      // 调用方传 skipErrorToast: true 时由 Login.vue 自行处理
+      // PR0013 修复：用模块级导入的 router 实例软跳；禁止任何 path 触发整页硬刷新
+      // （曾因 require('vue-router') + useRouter() 在 ESM/模块级上下文抛错而
+      // fallback 到 window.location.href = '/login'，导致部署后登录页刷新死循环）
       localStorage.removeItem('token')
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { useRouter } = require('vue-router')
-        const router = useRouter()
-        if (router.currentRoute.value.path !== '/login') {
-          router.push({ path: '/login', query: { reason: 'expired' } })
-        }
-      } catch {
-        // eslint-disable-next-line no-undef
-        if (typeof window !== 'undefined') window.location.href = '/login'
+      if (router.currentRoute.value.path !== '/login') {
+        router.push({ path: '/login', query: { reason: 'expired' } })
       }
       return Promise.reject(error)
     }
@@ -77,12 +73,15 @@ api.interceptors.response.use(
     }
 
     // 注入 router / auth 让 handleApiError 能处理 PR0013 401 + PERMISSION_DENIED 静默
-    let router = null
+    // PR0013 修复：注意此处局部变量名不能用 `router`，会 TDZ 遮蔽模块级 import router
+    // （let/const 声明在作用域顶部即建绑定，整个函数内对 `router` 的访问会因
+    //  局部声明尚未执行而抛 "Cannot access before initialization"）
+    let routerInstance = null
     let auth = null
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const routerMod = require('vue-router')
-      router = routerMod.useRouter?.() || null
+      routerInstance = routerMod.useRouter?.() || null
     } catch {
       /* 无 router 上下文（如单元测试） */
     }
@@ -94,7 +93,7 @@ api.interceptors.response.use(
       /* 无 store 上下文 */
     }
 
-    handleApiError(error, { toast, router, auth })
+    handleApiError(error, { toast, router: routerInstance, auth })
     return Promise.reject(error)
   }
 )

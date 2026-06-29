@@ -47,7 +47,7 @@ const { toasts, remove } = useToast()
   padding: 14px 16px;
   border-radius: 10px;
   background: white;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px var(--shadow-color-medium), 0 2px 4px var(--shadow-color-soft);
   font-size: 14px;
   line-height: 1.4;
 }

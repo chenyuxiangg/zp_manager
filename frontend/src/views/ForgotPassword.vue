@@ -1,33 +1,30 @@
 <template>
-  <div class="forgot-password-page">
-    <div class="forgot-password-card glass">
-      <h1>忘记密码</h1>
-      <p class="desc">输入您注册时使用的邮箱地址，我们将发送重置链接</p>
+  <!-- AuthLayout 提供 shell + 卡片背景；此处只放视图内容 -->
+  <h1>忘记密码</h1>
+  <p class="desc">输入您注册时使用的邮箱地址，我们将发送重置链接</p>
 
-      <form @submit.prevent="requestReset">
-        <div class="form-group">
-          <!-- B0302: 迁 BaseInput -->
-          <BaseInput
-            v-model="email"
-            type="email"
-            label="邮箱"
-            placeholder="请输入邮箱"
-            required
-          />
-        </div>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '发送中...' : '发送重置链接' }}
-        </button>
-      </form>
-
-      <p v-if="success" class="success-msg">发送成功！请检查您的邮箱。</p>
-      <p v-if="error" class="error-msg">{{ error }}</p>
-
-      <p class="switch-link">
-        记起密码了？<router-link to="/login">返回登录</router-link>
-      </p>
+  <form @submit.prevent="requestReset">
+    <div class="form-group">
+      <!-- B0302: 迁 BaseInput -->
+      <BaseInput
+        v-model="email"
+        type="email"
+        label="邮箱"
+        placeholder="请输入邮箱"
+        required
+      />
     </div>
-  </div>
+    <button type="submit" :disabled="loading">
+      {{ loading ? '发送中...' : '发送重置链接' }}
+    </button>
+  </form>
+
+  <p v-if="success" class="success-msg">发送成功！请检查您的邮箱。</p>
+  <p v-if="error" class="error-msg">{{ error }}</p>
+
+  <p class="switch-link">
+    记起密码了？<router-link to="/login">返回登录</router-link>
+  </p>
 </template>
 
 <script setup>
@@ -65,27 +62,14 @@ async function requestReset() {
 </script>
 
 <style scoped>
-.forgot-password-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface);
-}
-
-.forgot-password-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 40px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
+/* AuthLayout 负责外层 shell + 卡片背景，本 view 只管内容样式 */
 
 h1 {
   font-size: 24px;
   font-weight: 600;
   margin-bottom: 8px;
   text-align: center;
+  color: var(--text-primary);
 }
 
 .desc {

@@ -1,43 +1,40 @@
 <template>
-  <div class="reset-password-page">
-    <div class="reset-password-card glass">
-      <h1>重置密码</h1>
-      <p v-if="!tokenValid && !error" class="desc">正在验证链接...</p>
-      <p v-if="tokenValid && !success" class="desc">请输入您的新密码</p>
-      <p v-if="success" class="success-msg">密码重置成功！即将跳转到登录页面...</p>
-      <p v-if="error" class="error-msg">{{ error }}</p>
+  <!-- AuthLayout 提供 shell + 卡片背景（gradient 变体：紫蓝渐变）；此处只放视图内容 -->
+  <h1>重置密码</h1>
+  <p v-if="!tokenValid && !error" class="desc">正在验证链接...</p>
+  <p v-if="tokenValid && !success" class="desc">请输入您的新密码</p>
+  <p v-if="success" class="success-msg">密码重置成功！即将跳转到登录页面...</p>
+  <p v-if="error" class="error-msg">{{ error }}</p>
 
-      <form v-if="tokenValid && !success" @submit.prevent="resetPassword">
-        <div class="form-group">
-          <!-- B0302: 迁 BaseInput -->
-          <BaseInput
-            v-model="password"
-            type="password"
-            label="新密码"
-            placeholder="至少6位字符"
-            required
-            minlength="6"
-          />
-        </div>
-        <div class="form-group">
-          <BaseInput
-            v-model="confirmPassword"
-            type="password"
-            label="确认密码"
-            placeholder="再次输入密码"
-            required
-          />
-        </div>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '提交中...' : '重置密码' }}
-        </button>
-      </form>
-
-      <button v-if="success" class="btn-login" @click="goToLogin">
-        前往登录
-      </button>
+  <form v-if="tokenValid && !success" @submit.prevent="resetPassword">
+    <div class="form-group">
+      <!-- B0302: 迁 BaseInput -->
+      <BaseInput
+        v-model="password"
+        type="password"
+        label="新密码"
+        placeholder="至少6位字符"
+        required
+        minlength="6"
+      />
     </div>
-  </div>
+    <div class="form-group">
+      <BaseInput
+        v-model="confirmPassword"
+        type="password"
+        label="确认密码"
+        placeholder="再次输入密码"
+        required
+      />
+    </div>
+    <button type="submit" :disabled="loading">
+      {{ loading ? '提交中...' : '重置密码' }}
+    </button>
+  </form>
+
+  <button v-if="success" class="btn-login" @click="goToLogin">
+    前往登录
+  </button>
 </template>
 
 <script setup>
@@ -106,29 +103,14 @@ function goToLogin() {
 </script>
 
 <style scoped>
-.reset-password-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-}
-
-.reset-password-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 40px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.95);
-}
+/* AuthLayout 提供外层 shell + 卡片背景（紫蓝渐变 variant=gradient），本 view 只管内容样式 */
 
 h1 {
   font-size: 24px;
   font-weight: 600;
   text-align: center;
   margin-bottom: 8px;
-  color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .desc {

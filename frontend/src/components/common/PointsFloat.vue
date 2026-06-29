@@ -78,7 +78,7 @@ defineExpose({ show })
   pointer-events: none;
   /* B0271: 改用 token 变量 */
   z-index: var(--z-toast);
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  text-shadow: 0 2px 8px var(--shadow-color-strong);
 }
 
 .points-float.gain {
