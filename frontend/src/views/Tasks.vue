@@ -2,7 +2,9 @@
   <div class="layout">
     <main class="main-content">
       <div class="tasks-page">
-        <h1>任务管理</h1>
+        <div class="page-header">
+          <h1>任务管理</h1>
+        </div>
         <div class="tabs">
           <BaseButton :variant="tab === 'today' ? 'primary' : 'secondary'" size="sm" @click="tab = 'today'">今日任务</BaseButton>
           <BaseButton :variant="tab === 'overdue' ? 'primary' : 'secondary'" size="sm" @click="tab = 'overdue'">超期任务</BaseButton>
@@ -14,6 +16,7 @@
             :key="task.id"
             elevation="raised"
             padding="md"
+            class="task-card"
             data-guide="task-toggle"
             @click="goToDetail(task.id)"
           >
@@ -135,24 +138,25 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .points { color: var(--color-accent); font-weight: 600; }
 .user-info button { padding: 6px 12px; border: 1px solid var(--color-border); background: transparent; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .main-content { max-width: 1200px; margin: 0 auto; padding: var(--space-xl) var(--space-lg); }
-.tasks-page h1 { font-size: 24px; font-weight: 600; margin-bottom: var(--space-lg); }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
+.page-header h1 { font-size: 24px; font-weight: 600; }
 .tabs { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
 .tabs button { padding: 8px 16px; border: 1px solid var(--color-border); background: white; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .tabs button.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
 .task-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 
-/* 任务卡片：相对定位以容纳覆盖层 */
+/* 任务卡片：基于 BaseCard，追加 flex 布局 + 悬停浮起效果（与 .plan-card 保持一致） */
 .task-card {
   position: relative;
-  overflow: hidden;
-  padding: var(--space-md);
-  border-radius: 10px;
-  border: 1px solid var(--color-card-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition: box-shadow 0.2s ease;
+}
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow-color-soft);
+  border-color: var(--color-accent);
 }
 .task-title { font-weight: 500; margin-bottom: 4px; }
 .task-meta { font-size: 13px; color: var(--color-secondary); }

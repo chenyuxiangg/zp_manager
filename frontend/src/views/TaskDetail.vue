@@ -8,37 +8,39 @@
           <Breadcrumb :crumbs="[{ label: '任务', path: '/tasks' }, { label: task.title, path: null }]" />
         </div>
 
-        <!-- 任务主体 -->
-        <div class="task-header glass">
-          <div class="task-info">
-            <h1 v-if="!editing">{{ task.title }}</h1>
-            <input v-else v-model="editForm.title" class="title-input" />
-            <div class="task-meta">
-              <span>计划日期: {{ task.scheduled_date }}</span>
-              <span :class="'status-' + task.status">{{ statusText(task.status) }}</span>
-              <span v-if="task.points">{{ task.points }} 积分</span>
-              <span v-if="task.plan">所属计划: {{ task.plan.title }}</span>
+        <!-- 任务主体：与 Plans/PlanDetail 风格统一（BaseCard） -->
+        <BaseCard elevation="raised" padding="lg" class="task-section">
+          <div class="task-header">
+            <div class="task-info">
+              <h1 v-if="!editing">{{ task.title }}</h1>
+              <input v-else v-model="editForm.title" class="title-input" />
+              <div class="task-meta">
+                <span>计划日期: {{ task.scheduled_date }}</span>
+                <span :class="'status-' + task.status">{{ statusText(task.status) }}</span>
+                <span v-if="task.points">{{ task.points }} 积分</span>
+                <span v-if="task.plan">所属计划: {{ task.plan.title }}</span>
+              </div>
+            </div>
+            <div class="task-actions">
+              <BaseButton
+                variant="secondary"
+                @click="toggleComplete"
+                :disabled="loading"
+              >
+                {{ task.status === 'completed' ? '标记未完成' : '标记完成' }}
+              </BaseButton>
+              <BaseButton v-if="!editing" variant="secondary" @click="startEdit" :disabled="loading">编辑</BaseButton>
+              <template v-else>
+                <BaseButton variant="primary" @click="saveEdit" :disabled="loading">保存</BaseButton>
+                <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
+              </template>
+              <BaseButton variant="danger" @click="showDeleteConfirm = true" :disabled="loading">删除</BaseButton>
             </div>
           </div>
-          <div class="task-actions">
-            <BaseButton
-              variant="secondary"
-              @click="toggleComplete"
-              :disabled="loading"
-            >
-              {{ task.status === 'completed' ? '标记未完成' : '标记完成' }}
-            </BaseButton>
-            <BaseButton v-if="!editing" variant="secondary" @click="startEdit" :disabled="loading">编辑</BaseButton>
-            <template v-else>
-              <BaseButton variant="primary" @click="saveEdit" :disabled="loading">保存</BaseButton>
-              <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
-            </template>
-            <BaseButton variant="danger" @click="showDeleteConfirm = true" :disabled="loading">删除</BaseButton>
-          </div>
-        </div>
+        </BaseCard>
 
         <!-- B0299: Pomodoro 专注区 (核心产品功能) -->
-        <BaseCard elevation="raised" padding="md" class="pomodoro-section" data-guide="pomodoro-start">
+        <BaseCard elevation="raised" padding="lg" class="task-section" data-guide="pomodoro-start">
           <h3>专注</h3>
           <PomodoroStartButton
             :running="pomodoroRunning"
@@ -56,7 +58,7 @@
         </BaseCard>
 
         <!-- 描述区 -->
-        <div class="task-description glass">
+        <BaseCard elevation="raised" padding="lg" class="task-section">
           <h3>描述</h3>
           <div v-if="!editing" class="description-content">
             <div v-if="task.description" v-html="sanitizeHtml(task.description)"></div>
@@ -69,10 +71,10 @@
             placeholder="添加描述..."
             rows="4"
           />
-        </div>
+        </BaseCard>
 
         <!-- 评论区 -->
-        <div class="task-comments glass">
+        <BaseCard elevation="raised" padding="lg" class="task-section">
           <h3>评论 ({{ comments.length }})</h3>
           <div class="comment-list">
             <CommentItem
@@ -88,7 +90,7 @@
             <QuillEditor v-model:content="newComment" contentType="html" theme="snow" />
             <BaseButton variant="primary" @click="submitComment" :disabled="loading">发送评论</BaseButton>
           </div>
-        </div>
+        </BaseCard>
       </div>
       <p v-else>加载中...</p>
     </main>
@@ -425,7 +427,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
 .task-detail {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-md);
 }
 
 .breadcrumb-bar {
@@ -449,13 +451,7 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
   color: var(--color-accent, #0071e3);
 }
 
-.task-header,
-.task-description,
-.task-comments {
-  padding: 24px;
-  border-radius: 12px;
-}
-
+/* 任务主体卡片内部布局（外层由 BaseCard 提供 padding + border） */
 .task-header {
   display: flex;
   justify-content: space-between;
@@ -500,15 +496,10 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
   flex-shrink: 0;
   flex-wrap: wrap;
 }
-
-/* 按钮统一样式（补全局 button-states.css 缺失部分） */
 .task-actions button {
   padding: 8px 16px;
-  border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
   white-space: nowrap;
 }
 .task-actions button:disabled {
@@ -516,33 +507,48 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
   cursor: not-allowed;
 }
 
+/* BaseButton 变体样式（补全局缺失 — 与 button-states.css 对齐） */
 .btn-primary {
+  padding: 8px 16px;
   background: var(--color-accent, #0071e3);
   color: white;
   border: none;
+  border-radius: 6px;
+  cursor: pointer;
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-accent, #0071e3);
   opacity: 0.9;
 }
-
 .btn-secondary {
+  padding: 8px 16px;
   background: white;
   border: 1px solid var(--color-border, #d2d2d7);
   color: var(--color-primary, #000);
+  border-radius: 6px;
+  cursor: pointer;
 }
 .btn-secondary:hover:not(:disabled) {
   background: var(--color-surface, #f5f5f7);
   border-color: var(--color-secondary, #6e6e73);
 }
-
 .btn-danger {
+  padding: 8px 16px;
   background: var(--color-error, #ff3b30);
   color: white;
   border: none;
+  border-radius: 6px;
+  cursor: pointer;
 }
 .btn-danger:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+/* 章节标题（描述/评论/专注） */
+.task-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  color: var(--color-primary, #000);
 }
 
 .description-textarea {
@@ -580,20 +586,8 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
   gap: 12px;
 }
 
-.comment-editor .btn-primary {
+.comment-editor .base-button--primary {
   align-self: flex-end;
-  padding: 8px 20px;
-  font-size: 14px;
-  background: var(--color-accent, #0071e3);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-}
-.comment-editor .btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* 移动端适配：标题+操作按钮垂直堆叠，避免按钮溢出 */
@@ -604,10 +598,6 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary, #000); }
   }
   .task-actions {
     flex-wrap: wrap;
-  }
-  .task-actions button {
-    flex: 1;
-    min-width: 120px;
   }
   .breadcrumb-bar {
     flex-wrap: wrap;
