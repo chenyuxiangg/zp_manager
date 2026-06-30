@@ -11,6 +11,15 @@
           @click="drawerVisible = false"
         >{{ item.label }}</router-link>
       </nav>
+      <!-- B0341: 移动端抽屉底部登出入口 -->
+      <div class="app-drawer__footer">
+        <button
+          class="app-drawer__logout"
+          :disabled="loading"
+          data-testid="mobile-logout-btn"
+          @click="onLogout"
+        >{{ loading ? '退出中...' : '退出登录' }}</button>
+      </div>
     </AppMobileDrawer>
     <button v-if="isMobile" class="app-layout__hamburger" @click="drawerVisible = true" aria-label="打开菜单">☰</button>
     <main class="app-layout__main">
@@ -28,13 +37,22 @@ import AppFooter from './AppFooter.vue'
 // B0306: 复用 useNavConfig，与 AppHeader 保持单一数据源
 import { NAV_ITEMS } from '@/composables/useNavConfig'
 import { useAuthStore } from '@/stores/auth'
+// B0341: 移动端抽屉登出入口复用 composable
+import { useLogout } from '@/composables/useLogout'
 
 const auth = useAuthStore()
+const { handleLogout, loading } = useLogout()
 const isMobile = ref(false)
 const drawerVisible = ref(false)
 function checkMobile() { isMobile.value = window.innerWidth < 768 }
 onMounted(() => { checkMobile(); window.addEventListener('resize', checkMobile) })
 onUnmounted(() => { window.removeEventListener('resize', checkMobile) })
+
+// B0341: 抽屉内点击登出 → 先登出再关闭抽屉
+async function onLogout() {
+  await handleLogout()
+  drawerVisible.value = false
+}
 
 // 与 AppHeader 同款：filter 掉 requiresAdmin 项（admin 守卫交给链接层）
 const navItems = computed(() =>
@@ -91,6 +109,32 @@ const navItems = computed(() =>
 
 .app-layout__hamburger:active {
   transform: scale(0.95);
+}
+
+/* B0341: 移动端抽屉底部登出入口 */
+.app-drawer__footer {
+  margin-top: auto;
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+.app-drawer__logout {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.app-drawer__logout:hover:not(:disabled) {
+  color: var(--color-error, #dc3545);
+  border-color: var(--color-error, #dc3545);
+}
+.app-drawer__logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (min-width: 768px) {

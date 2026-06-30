@@ -13,6 +13,13 @@
       <div class="app-header__actions">
         <!-- B0298: ThemeSwitcher 始终可见（用户 UI 入口） -->
         <ThemeSwitcher />
+        <!-- B0341: 全局登出入口（AppHeader 桌面端 + 移动端均可见） -->
+        <button
+          class="app-header__logout"
+          :disabled="loading"
+          data-testid="logout-btn"
+          @click="handleLogout"
+        >{{ loading ? '退出中...' : '退出登录' }}</button>
         <slot name="actions" />
       </div>
     </div>
@@ -26,9 +33,12 @@ import { NAV_ITEMS } from '@/composables/useNavConfig'
 import { useAuthStore } from '@/stores/auth'
 // B0298: 挂载 ThemeSwitcher
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+// B0341: 复用 useLogout composable
+import { useLogout } from '@/composables/useLogout'
 
 const props = defineProps({ isMobile: { type: Boolean, default: false } })
 const auth = useAuthStore()
+const { handleLogout, loading } = useLogout()
 const navItems = computed(() =>
   NAV_ITEMS.filter(i => !i.requiresAdmin || auth.user?.is_admin)
 )
@@ -93,8 +103,32 @@ const navItems = computed(() =>
   gap: var(--space-md);
 }
 
+/* B0341: 桌面端/移动端头部全局登出按钮 */
+.app-header__logout {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.app-header__logout:hover:not(:disabled) {
+  color: var(--color-error, #dc3545);
+  border-color: var(--color-error, #dc3545);
+}
+.app-header__logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .app-header__nav {
+    display: none;
+  }
+  /* B0342: 移动端隐藏 AppHeader logout，避免与抽屉底部入口冗余（D1=A） */
+  .app-header__logout {
     display: none;
   }
 }

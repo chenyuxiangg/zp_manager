@@ -89,6 +89,17 @@
           <button @click="restartOnboarding">重新观看 5 步引导</button>
         </div>
 
+        <!-- B0341: 账号 section（PR0013 §9 承诺的 Settings 登出入口） -->
+        <div class="settings-section glass">
+          <h2>账号</h2>
+          <button
+            class="btn-logout"
+            :disabled="loading"
+            data-testid="settings-logout-btn"
+            @click="handleLogout"
+          >{{ loading ? '退出中...' : '退出登录' }}</button>
+        </div>
+
         <div class="settings-section glass">
           <h2>积分历史</h2>
           <div v-if="pointsHistory.length" class="points-history">
@@ -119,7 +130,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 // B0302: 统一表单基元
 import BaseInput from '@/components/base/BaseInput.vue'
+// B0341: 复用 useLogout composable 替代原死代码 handleLogout
+import { useLogout } from '@/composables/useLogout'
 const toast = useToast()
+const { handleLogout, loading } = useLogout()
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -208,10 +222,7 @@ async function saveNotifyConfig() {
   }
 }
 
-async function handleLogout() {
-  await authStore.logout()
-  router.push('/login')
-}
+// B0341: 移除原死代码 handleLogout 函数（改由 useLogout composable 提供）
 
 // B0253: 重新观看引导 (PR0012 入口)
 async function restartOnboarding() {
@@ -258,4 +269,36 @@ nav a:hover, nav a.router-link-active { color: var(--color-primary); }
 .log-time { font-size: 12px; color: var(--color-secondary); }
 .btn-load-more { margin-top: var(--space-sm); background: transparent; border: 1px solid var(--color-border); color: var(--color-secondary); }
 .empty-state { text-align: center; padding: var(--space-md); color: var(--color-secondary); font-size: 13px; }
+
+/* B0341: 账号 section 登出按钮 */
+.btn-logout {
+  width: 100%;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.btn-logout:hover:not(:disabled) {
+  color: var(--color-error, #dc3545);
+  border-color: var(--color-error, #dc3545);
+}
+.btn-logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* B0342: 复合选择器覆盖 .settings-section button 的 accent 样式。
+   特异性 (0,0,2,0) + Vue scoped data-v attr = 完胜 (0,0,2,2) */
+.settings-section .btn-logout {
+  background: transparent;
+  color: var(--text-primary);
+}
+.settings-section .btn-logout:hover:not(:disabled) {
+  color: var(--color-error, #dc3545);
+  border-color: var(--color-error, #dc3545);
+}
 </style>

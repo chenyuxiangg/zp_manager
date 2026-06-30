@@ -633,10 +633,7 @@ async function doRemoveComment(taskId, commentId) {
   }
 }
 
-async function handleLogout() {
-  await authStore.logout()
-  router.push('/login')
-}
+// B0341: 删除死代码 handleLogout（改由 AppHeader/AppLayout/Settings 的 useLogout 入口触发）
 
 onMounted(() => {
   loadPlanDetail()
