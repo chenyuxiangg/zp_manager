@@ -9,17 +9,16 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
 // mock driver.js
-const driverStartMock = vi.fn()
+// B0349: driver.js v1.4.0 真实 API 是 setSteps + drive(N)，没有 start() / defineSteps()
 const driverDestroyMock = vi.fn()
 const driverDriveMock = vi.fn()
-const driverDefineStepsMock = vi.fn()
+const driverSetStepsMock = vi.fn()
 const driverGetActiveIndexMock = vi.fn(() => 0)
 let capturedOnHighlighted = null
 const driverInstance = {
-  start: driverStartMock,
+  setSteps: driverSetStepsMock,
   destroy: driverDestroyMock,
   drive: driverDriveMock,
-  defineSteps: driverDefineStepsMock,
   getActiveIndex: driverGetActiveIndexMock,
   isActive: vi.fn(() => true),
 }
@@ -74,9 +73,9 @@ vi.mock('@/composables/useOnboardingWatcher', () => ({
 describe('PR0025 / KPI-3 — App.vue 集成：从 server current_step 续走', () => {
   beforeEach(() => {
     DriverMock.mockClear()
-    driverStartMock.mockReset()
     driverDestroyMock.mockReset()
     driverDriveMock.mockReset()
+    driverSetStepsMock.mockReset()
     driverGetActiveIndexMock.mockReset()
     driverGetActiveIndexMock.mockReturnValue(0)
     capturedOnHighlighted = null
@@ -113,10 +112,11 @@ describe('PR0025 / KPI-3 — App.vue 集成：从 server current_step 续走', (
     await vi.advanceTimersByTimeAsync(2000)
 
     expect(driverDriveMock).toHaveBeenCalledWith(2)
-    expect(driverStartMock).not.toHaveBeenCalled()
+    // B0349: 不再调 start()（v1.4.0 没有 start()）
+    expect(driverDriveMock).not.toHaveBeenCalledWith(0)
   })
 
-  it('【首次】fetchUser 返回 current_step=null → driver.start() 被调（从头开始）', async () => {
+  it('【首次】fetchUser 返回 current_step=null → driver.drive(0) 被调（从头开始）', async () => {
     authState.user = {
       id: 1,
       username: 'me',
@@ -134,8 +134,8 @@ describe('PR0025 / KPI-3 — App.vue 集成：从 server current_step 续走', (
     })
     await vi.advanceTimersByTimeAsync(2000)
 
-    expect(driverStartMock).toHaveBeenCalled()
-    expect(driverDriveMock).not.toHaveBeenCalled()
+    // B0349: driver.js v1.4.0 用 drive(0) 代替 v0.x 的 start()
+    expect(driverDriveMock).toHaveBeenCalledWith(0)
   })
 
   it('【超窗】fetchUser 返回 current_step=2 但创建超 5min → driver 不启动', async () => {
@@ -156,7 +156,7 @@ describe('PR0025 / KPI-3 — App.vue 集成：从 server current_step 续走', (
     })
     await vi.advanceTimersByTimeAsync(2000)
 
-    expect(driverStartMock).not.toHaveBeenCalled()
+    // B0349: 5min 窗口外 → driver 不启动（应被 shouldShow 兜底；driver.drive 不被调）
     expect(driverDriveMock).not.toHaveBeenCalled()
   })
 

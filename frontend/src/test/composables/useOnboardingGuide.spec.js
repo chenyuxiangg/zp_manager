@@ -32,6 +32,14 @@ vi.mock('@/stores/auth', () => ({
   }),
 }))
 
+// B0351: mock vue-router 让 useOnboardingGuide() 在 setup 外调 useRouter() 时
+//        能拿到 router 实例（不影响路由跳车功能）
+const routerPushMock = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPushMock }),
+  useRoute: () => ({ params: {}, query: {} }),
+}))
+
 const ONBOARDED_KEY = 'zpersion.onboarded'
 
 describe('PR0025 — useOnboardingGuide 委托契约', () => {
@@ -41,6 +49,7 @@ describe('PR0025 — useOnboardingGuide 委托契约', () => {
     storeClearCurrentStepMock.mockReset().mockResolvedValue(undefined)
     storeComputeResumeFromMock.mockReset().mockReturnValue(0)
     setOnboardedMock.mockReset().mockResolvedValue({ success: true })
+    routerPushMock.mockReset()
     authState.user = null
     localStorage.removeItem(ONBOARDED_KEY)
     setActivePinia(createPinia())
@@ -101,13 +110,59 @@ describe('PR0025 — useOnboardingGuide 委托契约', () => {
 
   // ============ 委托契约 ============
 
-  it('【startTour】委托给 store.startTour({ resumeFrom: computeResumeFrom() })', async () => {
+  it('【startTour】委托给 store.startTour({ resumeFrom, steps: instrumentedSteps })', async () => {
+    // B0351: composable 注入含 nextRoute → onNextClick 跨页路由跳车的 instrumentedSteps
+    //       传给 store（5 步全部覆盖、剥 nextRoute、保留 popover）
     storeComputeResumeFromMock.mockReturnValue(3)
     const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
     const g = useOnboardingGuide()
     g.startTour()
     expect(storeComputeResumeFromMock).toHaveBeenCalled()
-    expect(storeStartTourMock).toHaveBeenCalledWith({ resumeFrom: 3 })
+    expect(storeStartTourMock).toHaveBeenCalledTimes(1)
+    const callArg = storeStartTourMock.mock.calls[0][0]
+    expect(callArg.resumeFrom).toBe(3)
+    // steps 字段为数组（注入结果），长度 = TOUR_STEPS.length
+    expect(Array.isArray(callArg.steps)).toBe(true)
+    expect(callArg.steps.length).toBe(5)
+    // 第一步不跨页：保留原 step
+    expect(callArg.steps[0].element).toBe('[data-guide="welcome"]')
+    // 跨页步骤的 nextRoute 字段已剥离（cleanStep）— 不含 nextRoute 字段
+    expect('nextRoute' in callArg.steps[2]).toBe(false)
+    // 跨页步骤的 popover.onNextClick 被注入（函数）
+    expect(typeof callArg.steps[2].popover.onNextClick).toBe('function')
+    // 其余步骤的 popover 没有 onNextClick 注入
+    expect(callArg.steps[0].popover.onNextClick).toBeUndefined()
+    expect(callArg.steps[4].popover.onNextClick).toBeUndefined()
+  })
+
+  // ============ B0351 — 跨页路由跳车契约 ============
+
+  it('【B0351 跨页】popover.onNextClick → router.push(nextRoute) + driver.drive(idx+1)（anchor 入 DOM 后立即调）', async () => {
+    storeComputeResumeFromMock.mockReturnValue(0)
+    const { useOnboardingGuide } = await import('@/composables/useOnboardingGuide')
+    const g = useOnboardingGuide()
+    g.startTour()
+
+    // 注入下一步的 anchor 到 happy-dom，让 tryDrive 第一次轮询就成功
+    const anchor = document.createElement('h2')
+    anchor.setAttribute('data-guide', 'task-toggle')
+    document.body.appendChild(anchor)
+
+    // 拿到 step[2] (create-plan, nextRoute=/dashboard, 下一步 selector=task-toggle) 的 onNextClick
+    const injectedSteps = storeStartTourMock.mock.calls[0][0].steps
+    const crossStepOnNextClick = injectedSteps[2].popover.onNextClick
+
+    // mock opts.driver.drive
+    const driveSpy = vi.fn()
+    crossStepOnNextClick(undefined, undefined, { driver: { drive: driveSpy } })
+
+    // B0351: router.push 必被调（跳 /dashboard）
+    expect(routerPushMock).toHaveBeenCalledWith('/dashboard')
+    // B0351: tryDrive 第一次就命中 anchor → driveSpy(3) 立即调
+    expect(driveSpy).toHaveBeenCalledWith(3)
+
+    // 清理临时 anchor
+    document.body.removeChild(anchor)
   })
 
   it('【completeTour】localStorage + setOnboarded(true) + clearCurrentStep + store.destroy', async () => {

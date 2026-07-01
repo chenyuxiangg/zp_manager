@@ -10,16 +10,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 // mock driver.js — 命名导出 { driver }
-const driverStartMock = vi.fn()
+// B0349: driver.js v1.4.0 真实 API 是 setSteps + drive(N)，没有 start() / defineSteps()
+//       旧 mock 的 start/defineSteps 是 driver.js v0.x 时代的 API（不存在）—— TDD 假绿
 const driverDestroyMock = vi.fn()
 const driverDriveMock = vi.fn()
-const driverDefineStepsMock = vi.fn()
+const driverSetStepsMock = vi.fn()
 const driverGetActiveIndexMock = vi.fn(() => 0)
 const driverInstance = {
-  start: driverStartMock,
+  // B0349: v1.4.0 真实 API
+  setSteps: driverSetStepsMock,
   destroy: driverDestroyMock,
   drive: driverDriveMock,
-  defineSteps: driverDefineStepsMock,
   getActiveIndex: driverGetActiveIndexMock,
   isActive: vi.fn(() => true),
 }
@@ -43,10 +44,9 @@ vi.mock('@/stores/auth', () => ({
 describe('PR0025 — useOnboardingStore', () => {
   beforeEach(() => {
     DriverMock.mockClear()
-    driverStartMock.mockReset()
     driverDestroyMock.mockReset()
     driverDriveMock.mockReset()
-    driverDefineStepsMock.mockReset()
+    driverSetStepsMock.mockReset()
     driverGetActiveIndexMock.mockReset()
     driverGetActiveIndexMock.mockReturnValue(0)
     driverInstance.isActive.mockReset()
@@ -59,27 +59,26 @@ describe('PR0025 — useOnboardingStore', () => {
 
   // ============ KPI-3 — startTour resumeFrom 入参 ============
 
-  it('startTour({ resumeFrom: 0 }) → driver.start() 被调，drive() 不被调', async () => {
+  it('startTour({ resumeFrom: 0 }) → driver.drive(0) 被调（从头开始），不再调 setSteps（steps 在构造时已传）', async () => {
     const { useOnboardingStore } = await import('@/stores/onboarding')
     const store = useOnboardingStore()
     store.startTour({ resumeFrom: 0 })
-    expect(driverStartMock).toHaveBeenCalledTimes(1)
-    expect(driverDriveMock).not.toHaveBeenCalled()
+    expect(driverDriveMock).toHaveBeenCalledWith(0)
   })
 
-  it('startTour({ resumeFrom: 2 }) → driver.drive(2) 被调，start() 不被调', async () => {
+  it('startTour({ resumeFrom: 2 }) → driver.drive(2) 被调，drive(0) 不被调', async () => {
     const { useOnboardingStore } = await import('@/stores/onboarding')
     const store = useOnboardingStore()
     store.startTour({ resumeFrom: 2 })
     expect(driverDriveMock).toHaveBeenCalledWith(2)
-    expect(driverStartMock).not.toHaveBeenCalled()
+    expect(driverDriveMock).not.toHaveBeenCalledWith(0)
   })
 
-  it('startTour({ resumeFrom: 99 })（越界） → 回退到 driver.start()，不抛错', async () => {
+  it('startTour({ resumeFrom: 99 })（越界） → 回退到 driver.drive(0)，不抛错', async () => {
     const { useOnboardingStore } = await import('@/stores/onboarding')
     const store = useOnboardingStore()
     expect(() => store.startTour({ resumeFrom: 99 })).not.toThrow()
-    expect(driverStartMock).toHaveBeenCalledTimes(1)
+    expect(driverDriveMock).toHaveBeenCalledWith(0)
   })
 
   // ============ KPI-1 — onHighlighted hook → persistCurrentStep ============
@@ -193,5 +192,20 @@ describe('PR0025 — useOnboardingStore', () => {
     driverDestroyMock.mockClear()
     store.startTour({ resumeFrom: 1 })
     expect(driverDestroyMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ============ B0349-fix — driver.css 必须随 store 一起 import ============
+// 守护 driver.js v1.4.0 样式文件不被无意中遗漏：
+// 不在 onboarding.js import 'driver.js/dist/driver.css' → popover DOM 存在但无样式
+// （top:0 right:0、零 padding、无背景色）→ 用户感知"标题/描述/按钮全无"
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+
+describe('B0349-fix — driver.js v1.4.0 CSS 必须随 onboarding 引入', () => {
+  const SRC = readFileSync(resolve(__dirname, '../../stores/onboarding.js'), 'utf-8')
+
+  it('源码 contains import "driver.js/dist/driver.css"（防 v0.x 时代遗留回流）', () => {
+    expect(SRC).toMatch(/from\s+['"]driver\.js\/dist\/driver\.css['"]|import\s+['"]driver\.js\/dist\/driver\.css['"]/)
   })
 })

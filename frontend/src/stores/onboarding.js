@@ -10,8 +10,17 @@
 
 import { defineStore } from 'pinia'
 import { driver as Driver } from 'driver.js'
+// B0349-fix: driver.js v1.4.0 把样式拆到独立 CSS（v0.x 是打包在 JS 里的）。
+//           不在这里 import，popover 容器 / 标题 / 描述 / 按钮 DOM 都在，
+//           但全局无样式 → 用户看到的是 top:0 right:0 零样式 div，感知"无标题无按钮"
+//           （包含"重新观看引导"点击后的盲点）
+import 'driver.js/dist/driver.css'
 import { TOUR_STEPS } from '@/constants/tourSteps'
 import { useAuthStore } from '@/stores/auth'
+
+// B0351: 跨页路由跳车的 step 处理已下沉到 composables/useOnboardingGuide.js
+// （store 不依赖 router，避免 onboarding.js 顶层加载 router/index.js 触发测试
+// 环境下 createRouter 解析失败）
 
 // 模块级单例（测试需在 beforeEach 显式 destroy）
 let driver = null
@@ -28,12 +37,17 @@ export const useOnboardingStore = defineStore('onboarding', {
      * @param {Object} opts
      * @param {number} opts.resumeFrom - 0=从头；>=1=跳到该步（driver.drive）
      */
-    startTour({ resumeFrom = 0 } = {}) {
+    startTour({ resumeFrom = 0, steps } = {}) {
       // 已有 driver 先 destroy，避免单例累积
       if (driver) {
         try { driver.destroy() } catch { /* ignore */ }
         driver = null
       }
+
+      // B0351: steps 默认走常量 TOUR_STEPS。useOnboardingGuide.startTour 可传
+      // instrumentedSteps（含跨页路由跳车的 onNextClick 钩子）来覆盖——store
+      // 不直接依赖 router，避免测试环境下 createRouter 解析失败。
+      const stepsToRun = steps || TOUR_STEPS
 
       driver = new Driver({
         className: 'zpersion-tour',
@@ -44,6 +58,8 @@ export const useOnboardingStore = defineStore('onboarding', {
         doneBtnText: '完成',
         nextBtnText: '下一步',
         prevBtnText: '上一步',
+        // B0349: driver.js v1.4.0 用 steps 字段传 steps（v0.x 旧 API 是 defineSteps，不存在）
+        steps: stepsToRun,
         onHighlighted: () => {
           // B0033 D1 A：每步高亮立即持久化 current_step
           const idx = driver.getActiveIndex?.() ?? 0
@@ -56,12 +72,12 @@ export const useOnboardingStore = defineStore('onboarding', {
           this.activeIndex = 0
         },
       })
-      driver.defineSteps(TOUR_STEPS)
+      // B0349: driver.js v1.4.0 没有 start()，统一用 drive(N)（N=0 即"从头开始"）
       // 越界防御：resumeFrom 必须 0..TOUR_STEPS.length-1
-      if (typeof resumeFrom === 'number' && resumeFrom >= 1 && resumeFrom < TOUR_STEPS.length) {
+      if (typeof resumeFrom === 'number' && resumeFrom >= 1 && resumeFrom < stepsToRun.length) {
         driver.drive(resumeFrom)
       } else {
-        driver.start()
+        driver.drive(0)
       }
     },
 

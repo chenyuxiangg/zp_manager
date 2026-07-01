@@ -17,7 +17,6 @@
             elevation="raised"
             padding="md"
             class="task-card"
-            data-guide="task-toggle"
             @click="goToDetail(task.id)"
           >
             <div class="task-info">

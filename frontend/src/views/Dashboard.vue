@@ -49,8 +49,12 @@
             :days-to-100="streakStore.daysTo100"
           />
         </div>
-        <div class="section">
-          <h2>今日任务</h2>
+        <!-- B0351: 引导 step 3 (task-toggle) 锚点：选 h2 而非具体按钮，
+             避免「今日暂无任务」状态时按钮不在 DOM → dummy anchor fallback。
+             h2 永远在 DOM（section 始终存在），popover 描述直接告诉用户
+             「完成右侧的『完成』按钮即拿积分」即可 -->
+        <div class="section" data-guide="task-toggle-section">
+          <h2 data-guide="task-toggle">今日任务</h2>
           <div v-if="loading" class="skeleton-list">
             <div v-for="i in 3" :key="i" class="skeleton-task"></div>
           </div>

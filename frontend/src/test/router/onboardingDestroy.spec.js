@@ -9,16 +9,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 // mock driver.js
-const driverStartMock = vi.fn()
+// B0349: driver.js v1.4.0 真实 API 是 setSteps + drive(N)，没有 start() / defineSteps()
 const driverDestroyMock = vi.fn()
 const driverDriveMock = vi.fn()
-const driverDefineStepsMock = vi.fn()
+const driverSetStepsMock = vi.fn()
 const driverGetActiveIndexMock = vi.fn(() => 0)
 const driverInstance = {
-  start: driverStartMock,
+  setSteps: driverSetStepsMock,
   destroy: driverDestroyMock,
   drive: driverDriveMock,
-  defineSteps: driverDefineStepsMock,
   getActiveIndex: driverGetActiveIndexMock,
   isActive: vi.fn(() => true),
 }
@@ -40,9 +39,9 @@ describe('PR0025 / B0119 — router.afterEach driver.destroy()', () => {
 
   beforeEach(async () => {
     DriverMock.mockClear()
-    driverStartMock.mockReset()
     driverDestroyMock.mockReset()
     driverDriveMock.mockReset()
+    driverSetStepsMock.mockReset()
     driverGetActiveIndexMock.mockReset()
     driverGetActiveIndexMock.mockReturnValue(0)
     driverInstance.isActive.mockReset()

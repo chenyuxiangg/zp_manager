@@ -132,8 +132,11 @@ import { useToast } from '@/composables/useToast'
 import BaseInput from '@/components/base/BaseInput.vue'
 // B0341: 复用 useLogout composable 替代原死代码 handleLogout
 import { useLogout } from '@/composables/useLogout'
+// B0348: 重新观看引导直接调 useOnboardingGuide().startTour()，不依赖 watcher
+import { useOnboardingGuide } from '@/composables/useOnboardingGuide'
 const toast = useToast()
 const { handleLogout, loading } = useLogout()
+const RESTART_TOUR_DELAY_MS = 1500  // 与 App.vue onMounted 节奏一致，等锚点入 DOM
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -225,12 +228,19 @@ async function saveNotifyConfig() {
 // B0341: 移除原死代码 handleLogout 函数（改由 useLogout composable 提供）
 
 // B0253: 重新观看引导 (PR0012 入口)
+// B0348: 直接调 useOnboardingGuide().startTour()，不再依赖 useOnboardingWatcher
+// 理由：v2.18.1 引入的 watcher gate `oldVal===true && newVal===false` 在用户
+//       初值 onboarded=false（mock 模式 / 从未完成引导 / 5min 窗口已过）时
+//       不 fire；App.vue onMounted 不重跑——故 Settings.vue 主动启动最可靠
 async function restartOnboarding() {
   try {
     // B0304: 统一端点 — setOnboarded(false) 走 PUT /users/notify-config {onboarded: false}
     await authStore.setOnboarded(false)
-    // 跳 /dashboard，由 App.vue onMounted 检测 shouldShow 后启动 tour
+    // 跳 /dashboard（首步锚点 data-guide="welcome" 在 Dashboard.vue）
     router.push('/dashboard')
+    // B0348: 1500ms 后启动 tour（等 Dashboard 组件渲染 + 锚点入 DOM）
+    const guide = useOnboardingGuide()
+    setTimeout(() => guide.startTour(), RESTART_TOUR_DELAY_MS)
   } catch (e) {
     toast.error('重启引导失败')
   }
