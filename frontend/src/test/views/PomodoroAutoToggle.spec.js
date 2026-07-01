@@ -24,8 +24,12 @@ describe('B0325 — Pomodoro end body auto_toggle / early_end（源码守护）'
     expect(TASK_DETAIL_VUE).toMatch(/auto_toggle:\s*pomodoroAutoToggle\.value/)
   })
 
-  it('【stopPomodoro body 保留 duration 兼容】', () => {
-    expect(TASK_DETAIL_VUE).toMatch(/duration:\s*pomodoroMinutes\.value\s*\*\s*60/)
+  it('【stopPomodoro body duration 用真实 elapsed】B0345', () => {
+    // B0345 修复：duration 必须是真实 elapsed 秒数（不是计划时长）
+    // 之前传 pomodoroMinutes.value * 60 导致 actual_seconds 永远记录计划时长
+    expect(TASK_DETAIL_VUE).toMatch(/duration:\s*elapsedSec/)
+    // 反向守护：禁止再传 pomodoroMinutes * 60（计划时长）作为 duration
+    expect(TASK_DETAIL_VUE).not.toMatch(/duration:\s*pomodoroMinutes\.value\s*\*\s*60/)
   })
 
   it('【pomodoroAutoToggle ref 默认 false】PR0021 纯计时契约', () => {
@@ -57,7 +61,9 @@ import { mockApi } from '@/mocks/modules/pomodoro'
 
 desc2('B0325 — pomodoro mock 接受 early_end / auto_toggle', () => {
   it2('endSession 接受 early_end / auto_toggle 字段并回传 completed / auto_toggled', () => {
-    const res = mockApi.endSession(1, {
+    // B0346 修复：endSession 签名加 sessionId 参数（前端发 /tasks/{id}/pomodoro/{sessionId}/end）
+    const startRes = mockApi.startSession(1, { planned_minutes: 25 })
+    const res = mockApi.endSession(1, startRes.data.session_id, {
       early_end: false,
       auto_toggle: true,
       duration: 1500,

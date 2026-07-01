@@ -1,9 +1,11 @@
-// B0313 — TaskDetail.vue pomodoro start 发 planned_minutes（自定义时长）
+// B0313 — Pomodoro start 发 planned_minutes（自定义时长）
+// B0342 — API 调用已从 TaskDetail.vue 迁出到 stores/pomodoro.js
 //
 // 修复要点（必须守护）：
-// 1. startPomodoro 发 planned_minutes（不再发 duration）
-// 2. 兜底同步后端权威 planned_minutes
-// 3. mock startSession 接受 planned_minutes 优先，duration 兜底
+// 1. stores/pomodoro.js startPomodoro 发 planned_minutes（不再发 duration）
+// 2. TaskDetail.vue 把本地 pomodoroMinutes.value 透传给 store action
+// 3. TaskDetail.vue 响应兜底同步后端权威 planned_minutes
+// 4. mock startSession 接受 planned_minutes 优先，duration 兜底
 //
 // 测试策略：源码 grep + mock 端点契约
 
@@ -16,25 +18,35 @@ const TASK_DETAIL_VUE = readFileSync(
   'utf-8',
 )
 
+const POMODORO_STORE = readFileSync(
+  join(__dirname, '../../../src/stores/pomodoro.js'),
+  'utf-8',
+)
+
 const MOCK_POMODORO = readFileSync(
   join(__dirname, '../../../src/mocks/modules/pomodoro.js'),
   'utf-8',
 )
 
-describe('B0313 — TaskDetail.vue pomodoro start planned_minutes（源码守护）', () => {
-  it('【startPomodoro 发 planned_minutes】源码含 `planned_minutes: pomodoroMinutes`', () => {
-    // 守护：startPomodoro 必须发 planned_minutes 字段（与后端 PomodoroSession.planned_minutes 对齐）
-    expect(TASK_DETAIL_VUE).toMatch(/planned_minutes:\s*pomodoroMinutes\.value/)
+describe('B0342 — pomodoro start 链路源码守护', () => {
+  it('【stores/pomodoro.js startPomodoro 发 planned_minutes】', () => {
+    // 守护：store action 必须发 planned_minutes 字段（与后端 PomodoroSession.planned_minutes 对齐）
+    expect(POMODORO_STORE).toMatch(/planned_minutes:\s*plannedMinutes/)
   })
 
-  it('【startPomodoro 不发 duration】源码不应在 start 请求体里发 duration', () => {
-    // 守护：startPomodoro 不应再发 duration（duration 是 end 端点概念）
-    // 注意：end body 仍发 duration，grep 仅看 start 段
-    const startSection = TASK_DETAIL_VUE.match(/async function startPomodoro[\s\S]*?^\}/m)?.[0] || ''
-    expect(startSection).not.toMatch(/duration:\s*pomodoroMinutes/)
+  it('【stores/pomodoro.js startPomodoro 不发 duration】', () => {
+    // 守护：start action 不应再发 duration（duration 是 end 端点概念）
+    // 切分 start action：从 "async startPomodoro" 到下一个 "async " 函数起始之前
+    const startSection = POMODORO_STORE.match(/async startPomodoro[\s\S]*?(?=async \w+)/)?.[0] || ''
+    expect(startSection).not.toMatch(/duration:\s*\w+/)
   })
 
-  it('【startPomodoro 兜底同步后端】响应 planned_minutes 与本地不同时更新本地', () => {
+  it('【TaskDetail.vue 调用 store 时透传 pomodoroMinutes.value】', () => {
+    // 守护：组件本地分钟数必须传到 store action（避免硬编码 25）
+    expect(TASK_DETAIL_VUE).toMatch(/pomodoroStore\.startPomodoro\(\s*taskId,\s*pomodoroMinutes\.value\s*\)/)
+  })
+
+  it('【TaskDetail.vue 兜底同步后端 planned_minutes】', () => {
     // 守护：响应兜底逻辑必须存在
     expect(TASK_DETAIL_VUE).toMatch(/pomodoroMinutes\.value\s*=\s*res\.data\.planned_minutes/)
   })

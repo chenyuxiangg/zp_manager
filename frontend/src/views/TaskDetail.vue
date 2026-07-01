@@ -48,11 +48,14 @@
             @start="startPomodoro"
             @stop="stopPomodoro"
           />
+          <!-- B0344: PomodoroTimer 是纯展示组件，接收 remaining/running/completed 三个 prop
+               倒计时由 useCountdown 驱动；onPomodoroComplete 由 useCountdown.onComplete 触发
+               不再传 :duration（之前是错的，undefined / 60 = NaN → 显示 "NaN:NaN"） -->
           <PomodoroTimer
             v-if="pomodoroRunning"
-            :duration="pomodoroMinutes * 60"
-            :auto-toggle="pomodoroAutoToggle"
-            @complete="onPomodoroComplete"
+            :remaining="countdownRemaining"
+            :running="countdownRunning"
+            :completed="pomodoroCompleted"
           />
           <PomodoroHistoryList :sessions="pomodoroSessions" />
         </BaseCard>
@@ -122,6 +125,10 @@ import PomodoroHistoryList from '@/components/pomodoro/PomodoroHistoryList.vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import { useTasksStore } from '@/stores/tasks'
 import { useAuthStore } from '@/stores/auth'
+// B0342: pomodoro API 调用走 store（v2.18 架构约定：views/composables 禁 raw api）
+import { usePomodoroStore } from '@/stores/pomodoro'
+// B0344: 用 useCountdown 驱动 PomodoroTimer（PomodoroTimer 是纯展示组件，只读 remaining prop）
+import { useCountdown } from '@/composables/useCountdown'
 import { useApiResponse } from '@/composables/useApiResponse'
 import { useDraft } from '@/composables/useDraft'
 import { useBackNavigation } from '@/composables/useBackNavigation'
@@ -132,6 +139,15 @@ const route = useRoute()
 const router = useRouter()
 const tasksStore = useTasksStore()
 const authStore = useAuthStore()
+// B0342: pomodoro API 调用走 store（v2.18 架构约定：views/composables 禁 raw api）
+const pomodoroStore = usePomodoroStore()
+// B0344: useCountdown 提供每秒 -1 的 remaining 数值（之前直接传 :duration 让 PomodoroTimer 收到 undefined → "NaN:NaN"）
+const {
+  remaining: countdownRemaining,
+  running: countdownRunning,
+  start: startCountdown,
+  stop: stopCountdown,
+} = useCountdown({ onComplete: onPomodoroComplete })
 const { handleSuccess, handleError } = useApiResponse()
 const { handleBack } = useBackNavigation('/tasks')
 
@@ -153,17 +169,23 @@ const pomodoroMinutes = ref(25)  // 默认 25min（B0334 修复：与同段 ref 
 const pomodoroAutoToggle = ref(false)
 // B0312: 保存当前活跃 pomodoro session_id（end URL 必传）
 const currentPomodoroSessionId = ref(null)
+// B0344: 倒计时归零时为 true，控制 PomodoroTimer 显示「专注完成！」
+const pomodoroCompleted = ref(false)
+// B0345: startPomodoro 成功时记 Date.now()，stopPomodoro 计算真实 elapsed 秒数（不是计划时长）
+const pomodoroStartTimestamp = ref(null)
 
 async function startPomodoro() {
   pomodoroStarting.value = true
   try {
-    // B0313: 发 planned_minutes（分钟），与后端 PomodoroSession.planned_minutes 字段对齐
-    const res = await api.post(
-      `/tasks/${taskId}/pomodoro/start`,
-      { planned_minutes: pomodoroMinutes.value }
-    )
+    // B0342: 走 store action（之前直接调 api 触发 ReferenceError，导致"开启专注无反应"）
+    const res = await pomodoroStore.startPomodoro(taskId, pomodoroMinutes.value)
     if (res.success) {
       pomodoroRunning.value = true
+      pomodoroCompleted.value = false
+      // B0345: 记开始时间戳，stopPomodoro 计算真实 elapsed 秒数
+      pomodoroStartTimestamp.value = Date.now()
+      // B0344: 启动倒计时器，传分钟数转毫秒（B0317 keep-alive 钩子自动接管）
+      startCountdown(pomodoroMinutes.value * 60 * 1000)
       // B0312: 捕获并保存 session_id，供 stopPomodoro URL 拼接
       currentPomodoroSessionId.value = res?.data?.session_id || null
       // B0313: 兜底同步后端权威 planned_minutes（校验后值）
@@ -185,17 +207,23 @@ async function stopPomodoro(earlyEnd = false) {
     return
   }
   try {
-    // B0325: body 必传 early_end + auto_toggle（PR0008 联动版依赖）
-    const res = await api.post(
-      `/tasks/${taskId}/pomodoro/${currentPomodoroSessionId.value}/end`,
-      {
-        early_end: earlyEnd,
-        auto_toggle: pomodoroAutoToggle.value,
-        duration: pomodoroMinutes.value * 60,
-      }
-    )
+    // B0342: 走 store action；B0325 body 必传 early_end + auto_toggle（PR0008 联动版依赖）
+    // B0345: duration 用真实 elapsed 秒数（之前传 pomodoroMinutes*60 是计划时长，actual_seconds 永远不真实）
+    const elapsedSec = pomodoroStartTimestamp.value
+      ? Math.max(0, Math.floor((Date.now() - pomodoroStartTimestamp.value) / 1000))
+      : pomodoroMinutes.value * 60
+    const res = await pomodoroStore.endPomodoro(taskId, currentPomodoroSessionId.value, {
+      early_end: earlyEnd,
+      auto_toggle: pomodoroAutoToggle.value,
+      duration: elapsedSec,
+    })
     if (res.success) {
       pomodoroRunning.value = false
+      pomodoroCompleted.value = false
+      // B0344: 停止倒计时器
+      stopCountdown()
+      // B0345: 清掉开始时间戳，避免下次 start 误用
+      pomodoroStartTimestamp.value = null
       currentPomodoroSessionId.value = null
       // B0315 修复: end 后刷新历史列表，新结束的 session 应出现在 PomodoroHistoryList
       await fetchPomodoroSessions()
@@ -207,7 +235,9 @@ async function stopPomodoro(earlyEnd = false) {
 }
 async function onPomodoroComplete() {
   // B0325: 倒计时归零不调 API（只切 UI 状态），PR0008 联动版在 stopPomodoro 路径生效
+  // B0344: 此函数由 useCountdown 的 onComplete 回调触发（不在模板监听 PomodoroTimer emit）
   pomodoroRunning.value = false
+  pomodoroCompleted.value = true
   handleSuccess(pomodoroAutoToggle.value
     ? '已完成 25 分钟专注 + 任务已自动完成'
     : '已完成 25 分钟专注')
@@ -215,11 +245,14 @@ async function onPomodoroComplete() {
 
 // B0315 修复: 重命名为 fetchPomodoroSessions（既查 active session 也回填历史）
 // B0312: 恢复 active pomodoro session（跨设备/刷新场景）
+// B0342: 走 store action（之前直接调 api 触发 ReferenceError）
+// B0347: 兼容两端字段名 — 真后端 routes/pomodoro.py 返 `data.pomodoros`，mock 返 `data.sessions`
 async function fetchPomodoroSessions() {
   try {
-    const res = await api.get(`/tasks/${taskId}/pomodoros`)
+    const res = await pomodoroStore.fetchPomodoroSessions(taskId)
     if (res.success) {
-      const sessions = res?.data?.sessions || []
+      // B0347: fallback pomodoros 字段（真后端）/ sessions 字段（mock）
+      const sessions = res?.data?.sessions || res?.data?.pomodoros || []
       // 1. 回填历史列表（PomodoroHistoryList 显示）
       pomodoroSessions.value = sessions
       // 2. 恢复 active session（跨设备/刷新场景）

@@ -34,6 +34,16 @@ vi.mock('@/stores/tasks', () => ({
   useTasksStore: () => mockTasksStore
 }))
 
+// Mock pomodoro store (B0342: API 迁出到 stores/pomodoro.js)
+const mockPomodoroStore = {
+  startPomodoro: vi.fn(),
+  endPomodoro: vi.fn(),
+  fetchPomodoroSessions: vi.fn()
+}
+vi.mock('@/stores/pomodoro', () => ({
+  usePomodoroStore: () => mockPomodoroStore
+}))
+
 // Mock auth store
 const mockAuthStore = {
   user: { id: 1, username: 'me', points: 100 },

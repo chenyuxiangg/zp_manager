@@ -94,11 +94,15 @@ export async function handleMock(method, url, data) {
   // start/end 与 B0312 修复同步（已加 session_id）
   const pomodoroStartMatch = url.match(/^\/tasks\/(\d+)\/pomodoro\/start$/)
   if (pomodoroStartMatch && m === 'post') {
-    return pomodoro.mockApi.startSession(parseInt(pomodoroStartMatch[1]), data)
+    return pomodoro.mockApi.startSession(parseInt(pomododoroStartMatch[1]), data)
   }
-  const pomodoroEndMatch = url.match(/^\/tasks\/(\d+)\/pomodoro\/end$/)
+  // B0346 修复: end URL 含 session_id（B0312 契约）—— 之前正则只匹配裸 /end，导致
+  // axios adapter 不被设置，真发请求到 vite proxy → 500/连接失败 → 用户感知"结束专注没反应"
+  const pomodoroEndMatch = url.match(/^\/tasks\/(\d+)\/pomodoro\/(\d+)\/end$/)
   if (pomodoroEndMatch && m === 'post') {
-    return pomodoro.mockApi.endSession(parseInt(pomodoroEndMatch[1]), data)
+    const taskId = parseInt(pomodoroEndMatch[1])
+    const sessionId = parseInt(pomodoroEndMatch[2])
+    return pomodoro.mockApi.endSession(taskId, sessionId, data)
   }
   // B0327 修复: 真后端路径是 /tasks/<id>/pomodoros，删除旧的 /pomodoro/sessions mock
   const pomodorosListMatch = url.match(/^\/tasks\/(\d+)\/pomodoros$/)
