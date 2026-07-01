@@ -47,11 +47,29 @@ export const MOCK_TOGGLE_RESPONSE = {
 const delay = (ms = 50) => new Promise(resolve => setTimeout(resolve, ms))
 
 // 模拟内存中的任务列表（用于 fetchTodayTasks / fetchOverdueTasks / fetchAllTasks）
+// PR0025: 扩充超期任务到 7 条覆盖 4 个日期，便于肉眼验证 Dashboard 堆叠卡片分组
 const MOCK_TASKS_LIST = [
+  // 今天 (2026-06-06) — 今日任务
   { id: 1, title: '完成数学练习册第三章', scheduled_date: '2026-06-06', points: 10, status: 'pending', plan_id: 3, stage_id: 5 },
   { id: 2, title: '英语单词背诵 50 个', scheduled_date: '2026-06-06', points: 5, status: 'pending', plan_id: 3, stage_id: 5 },
-  { id: 3, title: '物理习题第二章', scheduled_date: '2026-06-05', points: 8, status: 'overdue', plan_id: 3, stage_id: 5 },
-  { id: 4, title: '化学实验报告', scheduled_date: '2026-06-04', points: 12, status: 'completed', completed_at: '2026-06-04T18:00:00Z', plan_id: 3, stage_id: 6 }
+
+  // --- 超期：2026-06-05 (1 天前) — warning ---
+  { id: 3, title: '物理习题第二章', scheduled_date: '2026-06-05', description: '<p>包括牛顿定律部分</p>', points: 8, status: 'overdue', plan_id: 3, stage_id: 5 },
+  { id: 4, title: '生物复习笔记整理', scheduled_date: '2026-06-05', description: '<p>细胞分裂章节</p>', points: 6, status: 'overdue', plan_id: 3, stage_id: 5 },
+
+  // --- 超期：2026-06-03 (3 天前) — warning ---
+  { id: 5, title: '化学实验报告', scheduled_date: '2026-06-03', description: '<p>酸碱中和实验</p>', points: 12, status: 'overdue', plan_id: 3, stage_id: 6 },
+  { id: 6, title: '数学错题本整理', scheduled_date: '2026-06-03', points: 6, status: 'overdue', plan_id: 3, stage_id: 5 },
+
+  // --- 超期：2026-05-30 (7 天前) — severe ---
+  { id: 7, title: '历史时间轴绘制', scheduled_date: '2026-05-30', description: '<p>近代史部分</p>', points: 15, status: 'overdue', plan_id: 4, stage_id: 7 },
+  { id: 8, title: '政治时事整理', scheduled_date: '2026-05-30', points: 8, status: 'overdue', plan_id: 4, stage_id: 7 },
+
+  // --- 超期：2026-05-23 (14 天前) — severe，堆叠最顶的卡片 ---
+  { id: 9, title: '语文古诗背诵', scheduled_date: '2026-05-23', description: '<p>将进酒 / 静夜思</p>', points: 5, status: 'overdue', plan_id: 4, stage_id: 7 },
+
+  // 已完成任务（上下文）
+  { id: 10, title: '已完成任务示例', scheduled_date: '2026-06-04', points: 5, status: 'completed', completed_at: '2026-06-04T18:00:00Z', plan_id: 3, stage_id: 6 }
 ]
 
 export const mockApi = {

@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTasksStore } from '@/stores/tasks'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -70,15 +70,23 @@ import BaseButton from '@/components/base/BaseButton.vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const tasksStore = useTasksStore()
-const tab = ref('today')
+// PR0025: 支持从 URL query 读取初始 tab，便于深链（如 /tasks?tab=overdue&date=2026-06-05）
+const tab = ref(route.query.tab || 'today')
 const showDeleteConfirm = ref(false)
 const deleteTaskId = ref(null)
 
 const displayedTasks = computed(() => {
   if (tab.value === 'today') return tasksStore.todayTasks
-  if (tab.value === 'overdue') return tasksStore.overdueTasks
+  if (tab.value === 'overdue') {
+    // PR0025: overdue tab 支持 ?date=YYYY-MM-DD 筛选（Dashboard 超期卡片点击钻取）
+    const dateFilter = route.query.date
+    return dateFilter
+      ? tasksStore.overdueTasks.filter(t => t.scheduled_date === dateFilter)
+      : tasksStore.overdueTasks
+  }
   return tasksStore.allTasks
 })
 
